@@ -3,9 +3,9 @@
     <update> 
         <version>3.1.0.0</version> 
         <url>https://dworld.ir/wp-content/uploads/cheats/pubgmobile/TestApp.exe</url> 
-        <filePath>https://dworld.ir/wp-content/uploads/cheats/pubgmobile/TestApp.exe</filePath>
+        <filePath>./TestApp.exe</filePath>
         <md5>79eb6bb9b52572717a7607b33e359445</md5>
-        <description>Update: 10/06/2018:
+        <description>Update: 7/01/2021:
         1. Updated a label.</description> 
         <launchArgs></launchArgs> 
     </update>
