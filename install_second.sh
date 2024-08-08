@@ -171,19 +171,9 @@ main() {
         next_item_cooldown=$(echo "$second_item" | jq -r '.cooldownSeconds')
         echo -e "${blue}The Second best item to buy:${yellow} $next_item_id${rest}"
 
-        # انتخاب کارت مناسب با توجه به وضعیت کولدان
-        selected_card=$(choose_card_to_upgrade $best_item_id $section $price $profit $cooldown $next_item_id $next_item_section $next_item_price $next_item_profit $next_item_cooldown)
-        
-        if [ "$selected_card" == "$next_item_id" ]; then
-            best_item_id="$next_item_id"
-            section="$next_item_section"
-            price="$next_item_price"
-            profit="$next_item_profit"
-            cooldown="$next_item_cooldown"
-        fi
-
-        echo -e "${purple}============================${rest}"
-        echo -e "${green}Best item to buy:${yellow} $best_item_id in section: $section"
+        # Select the best card based on cooldown
+        selected_item_id=$(choose_card_to_upgrade "$best_item_id" "$section" "$price" "$profit" "$cooldown" "$next_item_id" "$next_item_section" "$next_item_price" "$next_item_profit" "$next_item_cooldown")
+        echo -e "${blue}Best item to buy:${yellow} $selected_item_id in section: $section"
         echo -e "${blue}Price:${yellow} $price ${blue}Profit per hour:${yellow} $profit ${blue}Cooldown seconds:${yellow} $cooldown${rest}"
         echo -e "${purple}============================${rest}"
 
@@ -195,6 +185,12 @@ main() {
             https://api.hamsterkombatgame.io/clicker/user)
 
         echo -e "${yellow}Balance response:${rest} $balance_response"
+
+        # بررسی خطای 'NOT_FOUND'
+        if [[ "$balance_response" == "NOT_FOUND" ]]; then
+            echo -e "${red}Authorization یا API endpoint نامعتبر است. لطفاً بررسی کنید و دوباره امتحان کنید.${rest}"
+            exit 1
+        fi
 
         balance=$(echo "$balance_response" | jq -r '.user.balance')
 
