@@ -118,7 +118,6 @@ get_second_best_item() {
         https://api.hamsterkombatgame.io/clicker/upgrades-for-buy | jq -r '.upgradesForBuy | map(select(.isExpired == false and.isAvailable)) | map(select(.profitPerHourDelta!= 0 and.price!= 0)) | sort_by(-(.profitPerHourDelta /.price))[:2] |.[1] | {id:.id, section:.section, price:.price, profitPerHourDelta:.profitPerHourDelta, cooldownSeconds:.cooldownSeconds}'
 }
 
-
 # Function to wait for cooldown period with countdown
 wait_for_cooldown() {
     cooldown_seconds="$1"
@@ -130,9 +129,8 @@ wait_for_cooldown() {
     done
 }
 
-# Verify the best item
-# Function to choose between two sets of values
-choose() {
+# Function to choose between the best and second best items considering cooldown
+choose_card_to_upgrade() {
     local best_item_id=$1
     local section=$2 
     local price=$3 
@@ -144,23 +142,13 @@ choose() {
     local next_item_profit=$9 
     local next_item_cooldown=$10
 
-    # Calculate the ratios
-    left_side=$(echo "($threshold) * ($price/$profit)" | bc -l) # Assuming best_price and best_profit are meant to be price and profit
-    right_side=$(echo "$next_item_price/$next_item_profit" | bc -l) # Assuming next_price and next_item_profit are meant to be next_item_price and next_item_profit
-
-    if [[ -z "$cooldown" || "$cooldown" -eq 0 ]]; then
-        echo "$best_item_id"
-    elif [[ -v next_item_cooldown && -n "$next_item_cooldown" && "$next_item_cooldown" -ne 0 ]]; then
-        echo "$best_item_id"
-    elif (( $(echo "$left_side > $right_side" | bc -l) )); then
+    # اگر کارت اول در کولدان است، کارت دوم را بررسی کن
+    if [[ -n "$cooldown" && "$cooldown" -gt 0 ]]; then
         echo "$next_item_id"
     else
         echo "$best_item_id"
     fi
 }
-
-
-
 
 # Main script logic
 main() {
@@ -176,20 +164,17 @@ main() {
 
         # Get the second item
         second_item=$(get_second_best_item)
-        
         next_item_id=$(echo "$second_item" | jq -r '.id')
         next_item_section=$(echo "$second_item" | jq -r '.section')
         next_item_price=$(echo "$second_item" | jq -r '.price')
         next_item_profit=$(echo "$second_item" | jq -r '.profitPerHourDelta')
-        next_item_cooldown=$(echo "$best_item" | jq -r '.cooldownSeconds')
+        next_item_cooldown=$(echo "$second_item" | jq -r '.cooldownSeconds')
         echo -e "${blue}The Second best item to buy:${yellow} $next_item_id${rest}"
 
-        # Use the choose function to determine the best set of values
-        result=$(choose $best_item_id $section $price $profit $cooldown $next_item_id $next_item_section $next_item_price $next_item_profit $next_item_cooldown)
+        # انتخاب کارت مناسب با توجه به وضعیت کولدان
+        selected_card=$(choose_card_to_upgrade $best_item_id $section $price $profit $cooldown $next_item_id $next_item_section $next_item_price $next_item_profit $next_item_cooldown)
         
-        echo -e "${blue}The best product that can be bought to save time:${yellow} $result${rest}"
-
-        if [ "$result" == "$next_item_id" ]; then
+        if [ "$selected_card" == "$next_item_id" ]; then
             best_item_id="$next_item_id"
             section="$next_item_section"
             price="$next_item_price"
@@ -199,57 +184,47 @@ main() {
 
         echo -e "${purple}============================${rest}"
         echo -e "${green}Best item to buy:${yellow} $best_item_id ${green}in section:${yellow} $section${rest}"
-        echo -e "${blue}Price: ${cyan}$price${rest}"
-        echo -e "${blue}Profit per Hour: ${cyan}$profit${rest}"
-        echo ""
+        echo -e "${blue}Price:${yellow} $price ${blue}Profit per hour:${yellow} $profit ${blue}Cooldown seconds:${yellow} $cooldown${rest}"
+        echo -e "${purple}============================${rest}"
 
-        # Get current balanceCoins
-        current_balance=$(curl -s -X POST \
+        # Check balance
+        balance=$(curl -s -X POST -H "Content-Type: application/json" \
             -H "Authorization: $Authorization" \
             -H "Origin: https://hamsterkombat.io" \
             -H "Referer: https://hamsterkombat.io/" \
-            https://api.hamsterkombatgame.io/clicker/sync | jq -r '.clickerUser.balanceCoins')
+            https://api.hamsterkombatgame.io/clicker/user | jq -r '.user.balance')
 
-        # Check if current balance is above the threshold after purchase
-        if (( $(echo "$current_balance - $price > $min_balance_threshold" | bc -l) )); then
-            # Attempt to purchase the best upgrade item
-            if [ -n "$best_item_id" ]; then
-                echo -e "${green}Attempting to purchase upgrade '${yellow}$best_item_id${green}'...${rest}"
-                echo ""
-
-                purchase_status=$(purchase_upgrade "$best_item_id")
-
-                if echo "$purchase_status" | grep -q "error_code"; then
-                    wait_for_cooldown "$cooldown"
-                else
-                    purchase_time=$(date +"%Y-%m-%d %H:%M:%S")
-                    total_spent=$(echo "$total_spent + $price" | bc)
-                    total_profit=$(echo "$total_profit + $profit" | bc)
-                    current_balance=$(echo "$current_balance - $price" | bc)
-
-                    echo -e "${green}Upgrade ${yellow}'$best_item_id'${green} purchased successfully at ${cyan}$purchase_time${green}.${rest}"
-                    echo -e "${green}Total spent so far: ${cyan}$total_spent${green} coins.${rest}"
-                    echo -e "${green}Total profit added: ${cyan}$total_profit${green} coins per hour.${rest}"
-                    echo -e "${green}Current balance: ${cyan}$current_balance${green} coins.${rest}"
-                    
-                    sleep_duration=$((RANDOM % 8 + 5))
-                    echo -e "${green}Waiting for ${yellow}$sleep_duration${green} seconds before next purchase...${rest}"
-                    while [ $sleep_duration -gt 0 ]; do
-                        echo -ne "${cyan}$sleep_duration\033[0K\r${rest}"
-                        sleep 1
-                        ((sleep_duration--))
-                    done
-                fi
-            else
-                echo -e "${red}No valid item found to buy.${rest}"
-                break
-            fi
-        else
-            echo -e "${red}Current balance ${cyan}(${current_balance}) ${red}minus price of item ${cyan}(${price}) ${red}is below the threshold ${cyan}(${min_balance_threshold})${red}. Stopping purchases.${rest}"
+        echo -e "${green}Balance:${yellow} $balance${rest}"
+        if (( $(echo "$balance < $min_balance_threshold" | bc -l) )); then
+            echo -e "${red}Balance is below the threshold. Stopping the script.${rest}"
             break
         fi
+
+        # Wait if cooldown is active
+        if [ "$cooldown" -gt 0 ]; then
+            wait_for_cooldown "$cooldown"
+        fi
+
+        # Purchase upgrade
+        if (( $(echo "$balance >= $price" | bc -l) )); then
+            response=$(purchase_upgrade "$best_item_id")
+            if [[ "$response" == *"Success"* ]]; then
+                echo -e "${green}Successfully purchased upgrade:${yellow} $best_item_id${rest}"
+                total_spent=$(echo "$total_spent + $price" | bc)
+                total_profit=$(echo "$total_profit + $profit" | bc)
+                echo -e "${cyan}Total spent so far:${yellow} $total_spent${rest}"
+                echo -e "${cyan}Total profit so far:${yellow} $total_profit${rest}"
+            else
+                echo -e "${red}Failed to purchase upgrade. Response:${yellow} $response${rest}"
+            fi
+        else
+            echo -e "${red}Insufficient balance to purchase upgrade.${rest}"
+        fi
+
+        # Wait before next check
+        sleep 10
     done
 }
 
-# Execute the main function
+# Run the main logic
 main
