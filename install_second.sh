@@ -183,16 +183,20 @@ main() {
         fi
 
         echo -e "${purple}============================${rest}"
-        echo -e "${green}Best item to buy:${yellow} $best_item_id ${green}in section:${yellow} $section${rest}"
+        echo -e "${green}Best item to buy:${yellow} $best_item_id in section: $section"
         echo -e "${blue}Price:${yellow} $price ${blue}Profit per hour:${yellow} $profit ${blue}Cooldown seconds:${yellow} $cooldown${rest}"
         echo -e "${purple}============================${rest}"
 
         # Check balance
-        balance=$(curl -s -X POST -H "Content-Type: application/json" \
+        balance_response=$(curl -s -X POST -H "Content-Type: application/json" \
             -H "Authorization: $Authorization" \
             -H "Origin: https://hamsterkombat.io" \
             -H "Referer: https://hamsterkombat.io/" \
-            https://api.hamsterkombatgame.io/clicker/user | jq -r '.user.balance')
+            https://api.hamsterkombatgame.io/clicker/user)
+
+        echo -e "${yellow}Balance response:${rest} $balance_response"
+
+        balance=$(echo "$balance_response" | jq -r '.user.balance')
 
         echo -e "${green}Balance:${yellow} $balance${rest}"
         if (( $(echo "$balance < $min_balance_threshold" | bc -l) )); then
