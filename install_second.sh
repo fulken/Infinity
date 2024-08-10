@@ -115,6 +115,8 @@ main() {
     while true; do
         best_items=$(get_best_items)
         best_item_count=$(echo "$best_items" | jq 'length')
+        all_on_cooldown=true
+        shortest_cooldown=999999
 
         # Loop through the list of best items
         for (( i=0; i<$best_item_count; i++ )); do
@@ -130,6 +132,10 @@ main() {
             # Check cooldown and balance before purchase
             if [[ -n "$cooldown" && "$cooldown" -gt 0 ]]; then
                 echo -e "${yellow}Upgrade '${cyan}$best_item_id${yellow}' is on cooldown for ${cyan}$cooldown${yellow} seconds. Skipping to next best item.${rest}"
+                all_on_cooldown=false
+                if [ "$cooldown" -lt "$shortest_cooldown" ]; then
+                    shortest_cooldown="$cooldown"
+                fi
                 continue  # Skip to the next best item if this one is on cooldown
             elif [ -n "$best_item_id" ] && (( $(echo "$current_balance - $price > $min_balance_threshold" | bc -l) )); then
                 purchase_status=$(purchase_upgrade "$best_item_id")
@@ -142,20 +148,24 @@ main() {
                     current_balance=$(echo "$current_balance - $price" | bc)
 
                     echo -e "${green}Upgrade ${yellow}'$best_item_id'${green} purchased successfully.${rest}"
+                    all_on_cooldown=false
                     break  # Exit loop once a purchase is made
                 fi
             else
                 echo -e "${red}No valid item found to buy.${rest}"
-                break  # No items to buy, exit the loop
             fi
         done
 
-        # If no purchase was made, exit the script
-        if [ "$i" -eq "$best_item_count" ]; then
-            echo -e "${red}No purchases could be made. Exiting...${rest}"
-            break
+        # If all items are on cooldown, wait for the shortest cooldown period before trying again
+        if [ "$all_on_cooldown" = true ]; then
+            echo -e "${yellow}All items are on cooldown. Waiting for the shortest cooldown period of ${cyan}$shortest_cooldown${yellow} seconds...${rest}"
+            wait_for_cooldown "$shortest_cooldown"
+        else
+            break  # Exit the loop if a purchase was made or no more items to check
         fi
     done
+
+    echo -e "${green}Script execution completed.${rest}"
 }
 
 # Execute the main function
