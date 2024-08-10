@@ -65,10 +65,6 @@ echo -en "${green}Enter minimum balance threshold (${yellow}the script will stop
 read -r min_balance_threshold
 echo -e "${purple}============================${rest}"
 
-# Prompt for second card threshold
-echo -en "${green}Enter the Threshold that you want to buy a new card? (${yellow}number below 1 to always buy the best card and greater then 1 to buying the second best card threshold${green}):${rest}"
-read -r threshold
-
 # Variables to keep track of total spent and total profit
 total_spent=0
 total_profit=0
@@ -87,8 +83,8 @@ purchase_upgrade() {
     echo "$response"
 }
 
-# Function to get the best upgrade item
-get_best_item() {
+# Function to get all upgrade items sorted by profitability
+get_best_items() {
     curl -s -X POST -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
         -H "Accept: */*" \
         -H "Accept-Language: en-US,en;q=0.5" \
@@ -100,23 +96,7 @@ get_best_item() {
         -H "Sec-Fetch-Mode: cors" \
         -H "Sec-Fetch-Site: same-site" \
         -H "Priority: u=4" \
-        https://api.hamsterkombatgame.io/clicker/upgrades-for-buy | jq -r '.upgradesForBuy | map(select(.isExpired == false and .isAvailable)) | map(select(.profitPerHourDelta != 0 and .price != 0)) | sort_by(-(.profitPerHourDelta / .price))[:1] | .[0] | {id: .id, section: .section, price: .price, profitPerHourDelta: .profitPerHourDelta, cooldownSeconds: .cooldownSeconds}'
-}
-
-# Function to get the second best upgrade item
-get_second_best_item() {
-    curl -s -X POST -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
-        -H "Accept: */*" \
-        -H "Accept-Language: en-US,en;q=0.5" \
-        -H "Referer: https://hamsterkombat.io/" \
-        -H "Authorization: $Authorization" \
-        -H "Origin: https://hamsterkombat.io" \
-        -H "Connection: keep-alive" \
-        -H "Sec-Fetch-Dest: empty" \
-        -H "Sec-Fetch-Mode: cors" \
-        -H "Sec-Fetch-Site: same-site" \
-        -H "Priority: u=4" \
-        https://api.hamsterkombatgame.io/clicker/upgrades-for-buy | jq -r '.upgradesForBuy | map(select(.isExpired == false and .isAvailable)) | map(select(.profitPerHourDelta != 0 and .price != 0)) | sort_by(-(.profitPerHourDelta / .price))[:2] | .[1] | {id: .id, section: .section, price: .price, profitPerHourDelta: .profitPerHourDelta, cooldownSeconds: .cooldownSeconds}'
+        https://api.hamsterkombatgame.io/clicker/upgrades-for-buy | jq -r '.upgradesForBuy | map(select(.isExpired == false and .isAvailable)) | map(select(.profitPerHourDelta != 0 and .price != 0)) | sort_by(-(.profitPerHourDelta / .price))'
 }
 
 # Function to wait for cooldown period with countdown
@@ -130,82 +110,49 @@ wait_for_cooldown() {
     done
 }
 
-# Function to choose between two sets of values
-choose() {
-    local best_item_id=$1
-    local section=$2 
-    local price=$3 
-    local profit=$4 
-    local cooldown=$5 
-    local next_item_id=$6 
-    local next_item_section=$7 
-    local next_item_price=$8 
-    local next_item_profit=$9 
-    local next_item_cooldown=$10
-
-    # Calculate the ratios
-    left_side=$(echo "($threshold) * ($price/$profit)" | bc -l) 
-    right_side=$(echo "$next_item_price/$next_item_profit" | bc -l)
-
-    # Check if the best item is on cooldown
-    if [[ -n "$cooldown" && "$cooldown" -gt 0 ]]; then
-        echo "$next_item_id"
-    elif [[ -v next_item_cooldown && -n "$next_item_cooldown" && "$next_item_cooldown" -ne 0 ]]; then
-        echo "$best_item_id"
-    elif (( $(echo "$left_side > $right_side" | bc -l) )); then
-        echo "$next_item_id"
-    else
-        echo "$best_item_id"
-    fi
-}
-
 # Main script logic
 main() {
     while true; do
-        best_item=$(get_best_item)
-        best_item_id=$(echo "$best_item" | jq -r '.id')
-        section=$(echo "$best_item" | jq -r '.section')
-        price=$(echo "$best_item" | jq -r '.price')
-        profit=$(echo "$best_item" | jq -r '.profitPerHourDelta')
-        cooldown=$(echo "$best_item" | jq -r '.cooldownSeconds')
+        best_items=$(get_best_items)
+        best_item_count=$(echo "$best_items" | jq 'length')
 
-        second_item=$(get_second_best_item)
-        next_item_id=$(echo "$second_item" | jq -r '.id')
-        next_item_section=$(echo "$second_item" | jq -r '.section')
-        next_item_price=$(echo "$second_item" | jq -r '.price')
-        next_item_profit=$(echo "$second_item" | jq -r '.profitPerHourDelta')
-        next_item_cooldown=$(echo "$second_item" | jq -r '.cooldownSeconds')
+        # Loop through the list of best items
+        for (( i=0; i<$best_item_count; i++ )); do
+            best_item=$(echo "$best_items" | jq -r ".[$i]")
+            best_item_id=$(echo "$best_item" | jq -r '.id')
+            section=$(echo "$best_item" | jq -r '.section')
+            price=$(echo "$best_item" | jq -r '.price')
+            profit=$(echo "$best_item" | jq -r '.profitPerHourDelta')
+            cooldown=$(echo "$best_item" | jq -r '.cooldownSeconds')
 
-        # Use the choose function to determine which item to buy
-        result=$(choose $best_item_id $section $price $profit $cooldown $next_item_id $next_item_section $next_item_price $next_item_profit $next_item_cooldown)
+            echo -e "${green}Attempting to purchase upgrade '${yellow}$best_item_id${green}'...${rest}"
 
-        if [ "$result" == "$next_item_id" ]; then
-            best_item_id="$next_item_id"
-            section="$next_item_section"
-            price="$next_item_price"
-            profit="$next_item_profit"
-            cooldown="$next_item_cooldown"
-        fi
+            # Check cooldown and balance before purchase
+            if [[ -n "$cooldown" && "$cooldown" -gt 0 ]]; then
+                echo -e "${yellow}Upgrade '${cyan}$best_item_id${yellow}' is on cooldown for ${cyan}$cooldown${yellow} seconds. Skipping to next best item.${rest}"
+                continue  # Skip to the next best item if this one is on cooldown
+            elif [ -n "$best_item_id" ] && (( $(echo "$current_balance - $price > $min_balance_threshold" | bc -l) )); then
+                purchase_status=$(purchase_upgrade "$best_item_id")
 
-        echo -e "${green}Attempting to purchase upgrade '${yellow}$best_item_id${green}'...${rest}"
+                if echo "$purchase_status" | grep -q "error_code"; then
+                    wait_for_cooldown "$cooldown"
+                else
+                    total_spent=$(echo "$total_spent + $price" | bc)
+                    total_profit=$(echo "$total_profit + $profit" | bc)
+                    current_balance=$(echo "$current_balance - $price" | bc)
 
-        # Check cooldown and balance before purchase
-        if [[ -n "$cooldown" && "$cooldown" -gt 0 ]]; then
-            wait_for_cooldown "$cooldown"
-        elif [ -n "$best_item_id" ] && (( $(echo "$current_balance - $price > $min_balance_threshold" | bc -l) )); then
-            purchase_status=$(purchase_upgrade "$best_item_id")
-
-            if echo "$purchase_status" | grep -q "error_code"; then
-                wait_for_cooldown "$cooldown"
+                    echo -e "${green}Upgrade ${yellow}'$best_item_id'${green} purchased successfully.${rest}"
+                    break  # Exit loop once a purchase is made
+                fi
             else
-                total_spent=$(echo "$total_spent + $price" | bc)
-                total_profit=$(echo "$total_profit + $profit" | bc)
-                current_balance=$(echo "$current_balance - $price" | bc)
-
-                echo -e "${green}Upgrade ${yellow}'$best_item_id'${green} purchased successfully.${rest}"
+                echo -e "${red}No valid item found to buy.${rest}"
+                break  # No items to buy, exit the loop
             fi
-        else
-            echo -e "${red}No valid item found to buy.${rest}"
+        done
+
+        # If no purchase was made, exit the script
+        if [ "$i" -eq "$best_item_count" ]; then
+            echo -e "${red}No purchases could be made. Exiting...${rest}"
             break
         fi
     done
