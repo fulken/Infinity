@@ -90,7 +90,7 @@ while true; do
         exit 1
     fi
 
-    if [ "$Taps" -lt 30]; then
+    if [ "$Taps" -lt 30 ]; then
         echo "Taps are less than 30. Disconnecting and waiting..."
 
         # Kill all curl processes manually
@@ -99,7 +99,7 @@ while true; do
         done
 
         # Random sleep time between 10 minutes to 1.5 hours
-        sleep_time=$(shuf -i 60-5400 -n 1)
+        sleep_time=$(shuf -i 600-5400 -n 1)
         
         # Countdown timer
         echo "Reconnecting in $(($sleep_time / 60)) minutes..."
