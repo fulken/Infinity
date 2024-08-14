@@ -92,7 +92,24 @@ while true; do
 
     if [ "$Taps" -lt 30 ]; then
         echo "Taps are less than 30. Disconnecting and waiting..."
-        break
+        # Kill all curl processes to ensure all connections are closed
+        pkill -f curl
+
+        # Random sleep time between 30 minutes to 1 hour
+        sleep_time=$(shuf -i 1800-3600 -n 1)
+        
+        # Countdown timer
+        echo "Reconnecting in $(($sleep_time / 60)) minutes..."
+        while [ $sleep_time -gt 0 ]; do
+            echo -ne "Time remaining: $sleep_time\033[0K\r"
+            sleep 1
+            sleep_time=$((sleep_time - 1))
+        done
+
+        # Clear screen after countdown
+        clear
+        echo "Reconnecting now..."
+        continue
     fi
 
     random_sleep=$(shuf -i 5-10 -n 1) # Faster random sleep time
@@ -110,8 +127,3 @@ while true; do
 
     echo "Taps left: $Taps"
 done
-
-# Disconnect and wait
-echo "Disconnecting from server. Will reconnect later."
-sleep_time=$(shuf -i 1800-3600 -n 1) # Wait between 30 minutes to 1 hour
-sleep $sleep_time
