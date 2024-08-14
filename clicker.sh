@@ -99,13 +99,13 @@ while true; do
 
     # If taps were retrieved successfully, continue with the logic to consume taps
     while [[ "$Taps" -ge 30 && "$Taps" =~ ^[0-9]+$ ]]; do
-        # Perform the tap action until taps are less than 30
+        # Perform the tap action, now consuming 30 taps at a time (increased speed)
         curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
             -H "Content-Type: application/json" \
             -H "Authorization: $Authorization" \
             -d '{
                 "availableTaps": '"$Taps"',
-                "count": 3,
+                "count": 30,
                 "timestamp": '"$(date +%s)"'
             }' > /dev/null
 
