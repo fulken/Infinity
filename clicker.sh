@@ -9,24 +9,43 @@ cyan='\033[0;36m'
 blue='\033[0;34m'
 rest='\033[0m'
 
-# Retry function to attempt a command with a maximum number of retries
-retry_command() {
-    local retries=$1
-    shift
-    local count=0
+# If running in Termux, update and upgrade
+if [ -d "$HOME/.termux" ] && [ -z "$(command -v jq)" ]; then
+    echo "Running update & upgrade ..."
+    pkg update -y
+    pkg upgrade -y
+fi
 
-    until eval "$@"; do
-        exit_code=$?
-        count=$((count + 1))
-        if [ $count -lt $retries ]; then
-            echo -e "${yellow}Retry $count/$retries ...${rest}"
-            sleep 1
-        else
-            echo -e "${red}Command failed after $count attempts.${rest}"
-            return $exit_code
+# Function to install necessary packages
+install_packages() {
+    local packages=(curl jq bc)
+    local missing_packages=()
+
+    # Check for missing packages
+    for pkg in "${packages[@]}"; do
+        if ! command -v "$pkg" &> /dev/null; then
+            missing_packages+=("$pkg")
         fi
     done
-    return 0
+
+    # If any package is missing, install missing packages
+    if [ ${#missing_packages[@]} -gt 0 ]; then
+        if [ -n "$(command -v pkg)" ]; then
+            pkg install "${missing_packages[@]}" -y
+        elif [ -n "$(command -v apt)" ]; then
+            sudo apt update -y
+            sudo apt install "${missing_packages[@]}" -y
+        elif [ -n "$(command -v yum)" ]; then
+            sudo yum update -y
+            sudo yum install "${missing_packages[@]}" -y
+        elif [ -n "$(command -v dnf)" ]; then
+            sudo dnf update -y
+            sudo dnf install "${missing_packages[@]}" -y
+        else
+            echo -e "${yellow}Unsupported package manager. Please install required packages manually.${rest}"
+            exit 1
+        fi
+    fi
 }
 
 # Install the necessary packages
@@ -47,65 +66,52 @@ read -r capacity
 capacity=${capacity:-5000}
 
 while true; do
-    # Fetch remaining taps, retry up to 6 times on failure
-    retry_command 6 'Taps=$(curl -s -X POST \
-        https://api.hamsterkombatgame.io/clicker/sync \
-        -H "Content-Type: application/json" \
-        -H "Authorization: $Authorization" \
-        -d "{}" | jq -r ".clickerUser.availableTaps")'
-
-    if [ "$Taps" -lt 30 ]; then
-        echo "Taps are less than 30. Reducing..."
-        # Increase the speed to 5 times faster
-        while [ "$Taps" -gt 0 ]; do
-            retry_command 6 'curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
-                -H "Content-Type: application/json" \
-                -H "Authorization: $Authorization" \
-                -d "{\"availableTaps\": $Taps, \"count\": 3, \"timestamp\": $(date +%s)}" > /dev/null'
-            
-            sleep 0.2  # 5x speed reduction (original sleep time was 1 second, reduced to 0.2 seconds)
-
-            retry_command 6 'Taps=$(curl -s -X POST \
-                https://api.hamsterkombatgame.io/clicker/sync \
-                -H "Content-Type: application/json" \
-                -H "Authorization: $Authorization" \
-                -d "{}" | jq -r ".clickerUser.availableTaps")'
-        done
-
-        echo "Taps reduced below 30. Disconnecting from Hamster server..."
-        killall curl  # This line is just an example; replace it with your disconnect command
-        sleep 1
-
-        echo "Reconnecting to server within 30 minutes to 1 hour..."
-        sleep $((RANDOM % 1800 + 1800))  # Sleep for 30 to 60 minutes
-
-        # Reconnect and empty remaining taps
-        echo "Reconnecting now..."
-        retry_command 6 'Taps=$(curl -s -X POST \
+    # Try to get Taps with retries if needed
+    attempt=0
+    max_attempts=5
+    while [ $attempt -lt $max_attempts ]; do
+        Taps=$(curl -s -X POST \
             https://api.hamsterkombatgame.io/clicker/sync \
             -H "Content-Type: application/json" \
             -H "Authorization: $Authorization" \
-            -d "{}" | jq -r ".clickerUser.availableTaps")'
+            -d '{}' | jq -r '.clickerUser.availableTaps' 2>/dev/null)
 
-        while [ "$Taps" -gt 0 ]; do
-            retry_command 6 'curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
-                -H "Content-Type: application/json" \
-                -H "Authorization: $Authorization" \
-                -d "{\"availableTaps\": $Taps, \"count\": 3, \"timestamp\": $(date +%s)}" > /dev/null'
-            
-            sleep 0.2
-            retry_command 6 'Taps=$(curl -s -X POST \
-                https://api.hamsterkombatgame.io/clicker/sync \
-                -H "Content-Type: application/json" \
-                -H "Authorization: $Authorization" \
-                -d "{}" | jq -r ".clickerUser.availableTaps")'
-        done
+        if [ -n "$Taps" ] && [ "$Taps" -ge 0 ]; then
+            break
+        fi
 
-        echo "Final taps cleared. Disconnecting again."
-        killall curl  # Replace with your actual disconnect command
-        break
-    else
-        random_sleep=$(shuf -i 20-60 -n 1)
-        sleep $(echo "scale=3; $random_sleep / 1000" | bc)
+        attempt=$((attempt + 1))
+        echo "Failed to retrieve Taps. Attempt $attempt/$max_attempts"
+        sleep 2
+    done
+
+    if [ -z "$Taps" ] || [ "$Taps" -lt 0 ]; then
+        echo "Failed to retrieve Taps after $max_attempts attempts. Skipping..."
+        continue
     fi
+
+    if [ "$Taps" -lt 30 ]; then
+        echo "Taps are less than 30. Disconnecting and waiting..."
+        break
+    fi
+
+    random_sleep=$(shuf -i 5-10 -n 1) # Faster random sleep time
+    sleep $(echo "scale=3; $random_sleep / 1000" | bc)
+
+    # Increased taps per request to speed up the process
+    curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
+        -H "Content-Type: application/json" \
+        -H "Authorization: $Authorization" \
+        -d '{
+            "availableTaps": '"$Taps"',
+            "count": 15, 
+            "timestamp": '"$(date +%s)"'
+        }' > /dev/null
+
+    echo "Taps left: $Taps"
 done
+
+# Disconnect and wait
+echo "Disconnecting from server. Will reconnect later."
+sleep_time=$(shuf -i 1800-3600 -n 1) # Wait between 30 minutes to 1 hour
+sleep $sleep_time
