@@ -65,38 +65,39 @@ echo -en "${green}Enter Coin Capacity [${yellow}default:5000${green}]:${rest} "
 read -r capacity
 capacity=${capacity:-5000}
 
-
 while true; do
+    # Check the number of available taps
     Taps=$(curl -s -X POST \
         https://api.hamsterkombatgame.io/clicker/sync \
         -H "Content-Type: application/json" \
         -H "Authorization: $Authorization" \
         -d '{}' | jq -r '.clickerUser.availableTaps')
 
-    if [ "$Taps" -lt 30 ]; then
-        echo "Taps are less than 30. Waiting to reach $capacity again..."
-        while [ "$Taps" -lt $capacity ]; do
-            Taps=$(curl -s -X POST \
-                https://api.hamsterkombatgame.io/clicker/sync \
-                -H "Content-Type: application/json" \
-                -H "Authorization: $Authorization" \
-                -d '{}' | jq -r '.clickerUser.availableTaps')
-            sleep 5
-        done
-        continue
-    fi
+    while [ "$Taps" -ge 30 ]; do
+        # Perform the tap action until taps are less than 30
+        curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
+            -H "Content-Type: application/json" \
+            -H "Authorization: $Authorization" \
+            -d '{
+                "availableTaps": '"$Taps"',
+                "count": 3,
+                "timestamp": '"$(date +%s)"'
+            }' > /dev/null
 
-    random_sleep=$(shuf -i 20-60 -n 1)
-    sleep $(echo "scale=3; $random_sleep / 1000" | bc)
+        echo "Taps left: $Taps"
 
-    curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
-        -H "Content-Type: application/json" \
-        -H "Authorization: $Authorization" \
-        -d '{
-            "availableTaps": '"$Taps"',
-            "count": 3,
-            "timestamp": '"$(date +%s)"'
-        }' > /dev/null
+        # Re-check the number of available taps
+        Taps=$(curl -s -X POST \
+            https://api.hamsterkombatgame.io/clicker/sync \
+            -H "Content-Type: application/json" \
+            -H "Authorization: $Authorization" \
+            -d '{}' | jq -r '.clickerUser.availableTaps')
+        
+        sleep 1
+    done
 
-    echo "Taps left: $Taps"
+    # Sleep for a random time between 40 minutes and 2 hours
+    random_sleep=$(shuf -i 2400-7200 -n 1)
+    echo "Sleeping for $(($random_sleep / 60)) minutes before the next check..."
+    sleep "$random_sleep"
 done
