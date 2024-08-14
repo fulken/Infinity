@@ -99,7 +99,7 @@ while true; do
         done
 
         # Random sleep time between 10 minutes to 1.5 hours
-        sleep_time=$(shuf -i 600-5400 -n 1)
+        sleep_time=$(shuf -i 60-60 -n 1)
         
         # Countdown timer
         echo "Reconnecting in $(($sleep_time / 60)) minutes..."
