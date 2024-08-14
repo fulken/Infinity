@@ -86,11 +86,11 @@ while true; do
     done
 
     if [ -z "$Taps" ] || [ "$Taps" -lt 0 ]; then
-        echo "Failed to retrieve Taps after $max_attempts attempts. Skipping..."
-        continue
+        echo "Failed to retrieve Taps after $max_attempts attempts. Exiting script."
+        exit 1
     fi
 
-    if [ "$Taps" -lt 30 ]; then
+    if [ "$Taps" -lt 30]; then
         echo "Taps are less than 30. Disconnecting and waiting..."
 
         # Kill all curl processes manually
@@ -98,8 +98,8 @@ while true; do
             kill -9 $pid
         done
 
-        # Random sleep time between 30 minutes to 1 hour
-        sleep_time=$(shuf -i 1800-3600 -n 1)
+        # Random sleep time between 10 minutes to 1.5 hours
+        sleep_time=$(shuf -i 60-5400 -n 1)
         
         # Countdown timer
         echo "Reconnecting in $(($sleep_time / 60)) minutes..."
