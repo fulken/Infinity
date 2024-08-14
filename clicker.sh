@@ -93,13 +93,10 @@ while true; do
     if [ "$Taps" -lt 30 ]; then
         echo "Taps are less than 30. Disconnecting and waiting..."
 
-        # Attempt to kill all curl processes to ensure all connections are closed
-        if command -v killall &> /dev/null; then
-            killall curl
-        else
-            # Use kill with grep as a fallback
-            pkill -f curl || (ps aux | grep '[c]url' | awk '{print $2}' | xargs -r kill)
-        fi
+        # Kill all curl processes manually
+        for pid in $(ps aux | grep '[c]url' | awk '{print $2}'); do
+            kill -9 $pid
+        done
 
         # Random sleep time between 30 minutes to 1 hour
         sleep_time=$(shuf -i 1800-3600 -n 1)
