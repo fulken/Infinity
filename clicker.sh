@@ -66,13 +66,38 @@ read -r capacity
 capacity=${capacity:-5000}
 
 while true; do
-    # Check the number of available taps
-    Taps=$(curl -s -X POST \
-        https://api.hamsterkombatgame.io/clicker/sync \
-        -H "Content-Type: application/json" \
-        -H "Authorization: $Authorization" \
-        -d '{}' | jq -r '.clickerUser.availableTaps')
+    attempt=0
+    success=false
 
+    # Try up to 3 times to get the number of available taps
+    while [ $attempt -lt 3 ]; do
+        Taps=$(curl -s -X POST \
+            https://api.hamsterkombatgame.io/clicker/sync \
+            -H "Content-Type: application/json" \
+            -H "Authorization: $Authorization" \
+            -d '{}' | jq -r '.clickerUser.availableTaps')
+
+        # Check if Taps is a valid integer
+        if [[ $Taps =~ ^[0-9]+$ ]]; then
+            success=true
+            break
+        else
+            echo -e "${red}Error retrieving taps, retrying... (${attempt}/3)${rest}"
+            attempt=$((attempt + 1))
+            sleep 5  # Wait for 5 seconds before retrying
+        fi
+    done
+
+    # If after 3 attempts, we still have an error, go to sleep
+    if [ "$success" = false ]; then
+        echo -e "${red}Failed to retrieve taps after 3 attempts. Sleeping for the next interval.${rest}"
+        random_sleep=$(shuf -i 2400-7200 -n 1)
+        echo "Sleeping for $(($random_sleep / 60)) minutes before the next check..."
+        sleep "$random_sleep"
+        continue
+    fi
+
+    # If taps were retrieved successfully, continue with the logic to consume taps
     while [ "$Taps" -ge 30 ]; do
         # Perform the tap action until taps are less than 30
         curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
@@ -92,7 +117,13 @@ while true; do
             -H "Content-Type: application/json" \
             -H "Authorization: $Authorization" \
             -d '{}' | jq -r '.clickerUser.availableTaps')
-        
+
+        # Handle the case where the retrieved Taps value is not valid
+        if [[ ! $Taps =~ ^[0-9]+$ ]]; then
+            echo -e "${red}Error retrieving taps during consumption. Breaking out...${rest}"
+            break
+        fi
+
         sleep 1
     done
 
