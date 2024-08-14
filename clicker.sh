@@ -9,43 +9,24 @@ cyan='\033[0;36m'
 blue='\033[0;34m'
 rest='\033[0m'
 
-# If running in Termux, update and upgrade
-if [ -d "$HOME/.termux" ] && [ -z "$(command -v jq)" ]; then
-    echo "Running update & upgrade ..."
-    pkg update -y
-    pkg upgrade -y
-fi
+# Retry function to attempt a command with a maximum number of retries
+retry_command() {
+    local retries=$1
+    shift
+    local count=0
 
-# Function to install necessary packages
-install_packages() {
-    local packages=(curl jq bc)
-    local missing_packages=()
-
-    # Check for missing packages
-    for pkg in "${packages[@]}"; do
-        if ! command -v "$pkg" &> /dev/null; then
-            missing_packages+=("$pkg")
+    until "$@"; do
+        exit_code=$?
+        count=$((count + 1))
+        if [ $count -lt $retries ]; then
+            echo -e "${yellow}Retry $count/$retries ...${rest}"
+            sleep 1
+        else
+            echo -e "${red}Command failed after $count attempts.${rest}"
+            return $exit_code
         fi
     done
-
-    # If any package is missing, install missing packages
-    if [ ${#missing_packages[@]} -gt 0 ]; then
-        if [ -n "$(command -v pkg)" ]; then
-            pkg install "${missing_packages[@]}" -y
-        elif [ -n "$(command -v apt)" ]; then
-            sudo apt update -y
-            sudo apt install "${missing_packages[@]}" -y
-        elif [ -n "$(command -v yum)" ]; then
-            sudo yum update -y
-            sudo yum install "${missing_packages[@]}" -y
-        elif [ -n "$(command -v dnf)" ]; then
-            sudo dnf update -y
-            sudo dnf install "${missing_packages[@]}" -y
-        else
-            echo -e "${yellow}Unsupported package manager. Please install required packages manually.${rest}"
-            exit 1
-        fi
-    fi
+    return 0
 }
 
 # Install the necessary packages
@@ -66,69 +47,70 @@ read -r capacity
 capacity=${capacity:-5000}
 
 while true; do
-    attempt=0
-    success=false
+    # Fetch remaining taps, retry up to 6 times on failure
+    retry_command 6 Taps=$(curl -s -X POST \
+        https://api.hamsterkombatgame.io/clicker/sync \
+        -H "Content-Type: application/json" \
+        -H "Authorization: $Authorization" \
+        -d '{}' | jq -r '.clickerUser.availableTaps')
 
-    # Try up to 3 times to get the number of available taps
-    while [ $attempt -lt 3 ]; do
-        Taps=$(curl -s -X POST \
-            https://api.hamsterkombatgame.io/clicker/sync \
-            -H "Content-Type: application/json" \
-            -H "Authorization: $Authorization" \
-            -d '{}' | jq -r '.clickerUser.availableTaps')
-
-        # Check if Taps is a valid integer
-        if [[ $Taps =~ ^[0-9]+$ ]]; then
-            success=true
-            break
-        else
-            echo -e "${red}Error retrieving taps, retrying... (${attempt}/3)${rest}"
-            attempt=$((attempt + 1))
-            sleep 5  # Wait for 5 seconds before retrying
-        fi
-    done
-
-    # If after 3 attempts, we still have an error, go to sleep
-    if [ "$success" = false ]; then
-        echo -e "${red}Failed to retrieve taps after 3 attempts. Sleeping for the next interval.${rest}"
-        random_sleep=$(shuf -i 2400-7200 -n 1)
-        echo "Sleeping for $(($random_sleep / 60)) minutes before the next check..."
-        sleep "$random_sleep"
-        continue
-    fi
-
-    # If taps were retrieved successfully, continue with the logic to consume taps
-    while [[ "$Taps" -ge 30 && "$Taps" =~ ^[0-9]+$ ]]; do
-        # Perform the tap action, now consuming 30 taps at a time (increased speed)
-        curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
-            -H "Content-Type: application/json" \
-            -H "Authorization: $Authorization" \
-            -d '{
-                "availableTaps": '"$Taps"',
-                "count": 30,
-                "timestamp": '"$(date +%s)"'
-            }' > /dev/null
-
-        echo "Taps left: $Taps"
-
-        # Re-check the number of available taps
-        Taps=$(curl -s -X POST \
-            https://api.hamsterkombatgame.io/clicker/sync \
-            -H "Content-Type: application/json" \
-            -H "Authorization: $Authorization" \
-            -d '{}' | jq -r '.clickerUser.availableTaps')
-
-        # Handle the case where the retrieved Taps value is not valid
-        if [[ ! $Taps =~ ^[0-9]+$ ]]; then
-            echo -e "${red}Error retrieving taps during consumption. Breaking out...${rest}"
-            break
-        fi
-
+    if [ "$Taps" -lt 30 ]; then
+        echo "Taps are less than 30. Reducing..."
+        # Increase the speed to 5 times faster
+        while [ "$Taps" -gt 0 ]; do
+            retry_command 6 curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
+                -H "Content-Type: application/json" \
+                -H "Authorization: $Authorization" \
+                -d '{
+                    "availableTaps": '"$Taps"',
+                    "count": 3,
+                    "timestamp": '"$(date +%s)"'
+                }' > /dev/null
+            sleep 0.2  # 5x speed reduction (original sleep time was 1 second, reduced to 0.2 seconds)
+            retry_command 6 Taps=$(curl -s -X POST \
+                https://api.hamsterkombatgame.io/clicker/sync \
+                -H "Content-Type: application/json" \
+                -H "Authorization: $Authorization" \
+                -d '{}' | jq -r '.clickerUser.availableTaps')
+        done
+        echo "Taps reduced below 30. Disconnecting from Hamster server..."
+        # Disconnect from the server (custom command depending on your system)
+        killall curl  # This line is just an example; replace it with your disconnect command
         sleep 1
-    done
 
-    # Sleep for a random time between 40 minutes and 2 hours
-    random_sleep=$(shuf -i 2400-7200 -n 1)
-    echo "Sleeping for $(($random_sleep / 60)) minutes before the next check..."
-    sleep "$random_sleep"
+        echo "Reconnecting to server within 30 minutes to 1 hour..."
+        sleep $((RANDOM % 1800 + 1800))  # Sleep for 30 to 60 minutes
+
+        # Reconnect and empty remaining taps
+        echo "Reconnecting now..."
+        retry_command 6 Taps=$(curl -s -X POST \
+            https://api.hamsterkombatgame.io/clicker/sync \
+            -H "Content-Type: application/json" \
+            -H "Authorization: $Authorization" \
+            -d '{}' | jq -r '.clickerUser.availableTaps')
+
+        while [ "$Taps" -gt 0 ]; do
+            retry_command 6 curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
+                -H "Content-Type: application/json" \
+                -H "Authorization: $Authorization" \
+                -d '{
+                    "availableTaps": '"$Taps"',
+                    "count": 3,
+                    "timestamp": '"$(date +%s)"'
+                }' > /dev/null
+            sleep 0.2
+            retry_command 6 Taps=$(curl -s -X POST \
+                https://api.hamsterkombatgame.io/clicker/sync \
+                -H "Content-Type: application/json" \
+                -H "Authorization: $Authorization" \
+                -d '{}' | jq -r '.clickerUser.availableTaps')
+        done
+
+        echo "Final taps cleared. Disconnecting again."
+        killall curl  # Replace with your actual disconnect command
+        break
+    else
+        random_sleep=$(shuf -i 20-60 -n 1)
+        sleep $(echo "scale=3; $random_sleep / 1000" | bc)
+    fi
 done
