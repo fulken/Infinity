@@ -135,14 +135,10 @@ while true; do
         minutes=$(echo "scale=2; $sleep_time / 60" | bc)
         echo "Reconnecting in ${minutes} minutes..."
         
-        # Countdown timer
-        while [ $sleep_time -gt 0 ]; do
-            echo -ne "Time remaining: $sleep_time seconds\033[0K\r"
-            sleep 1
-            sleep_time=$((sleep_time - 1))
-        done
+        # Use sleep directly without manual countdown
+        sleep "$sleep_time"
 
-        # Clear screen after countdown
+        # Clear screen after sleep
         clear
         echo "Reconnecting now..."
         continue
