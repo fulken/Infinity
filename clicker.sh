@@ -65,25 +65,17 @@ echo -en "${green}Enter Coin Capacity [${yellow}default:5000${green}]:${rest} "
 read -r capacity
 capacity=${capacity:-5000}
 
-# Store the script's PID to identify processes started by this script
-script_pid=$$
-
 while true; do
     # Try to get Taps with retries if needed
     attempt=0
     max_attempts=5
     while [ $attempt -lt $max_attempts ]; do
-        # Start curl and save its PID
-        curl -s -X POST https://api.hamsterkombatgame.io/clicker/sync \
+        Taps=$(curl -s -X POST \
+            https://api.hamsterkombatgame.io/clicker/sync \
             -H "Content-Type: application/json" \
             -H "Authorization: $Authorization" \
-            -H "User-Agent: Mozilla/5.0 (Linux; Android 13; S24Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36" \
-            -d '{}' &
-        curl_pid=$!
-
-        # Wait for curl to finish and process its output with jq
-        wait $curl_pid
-        Taps=$(jq -r '.clickerUser.availableTaps' <<< "$TapsOutput")
+            -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
+            -d '{}' | jq -r '.clickerUser.availableTaps' 2>/dev/null)
 
         if [ -n "$Taps" ] && [ "$Taps" -ge 0 ]; then
             break
@@ -101,13 +93,6 @@ while true; do
 
     if [ "$Taps" -lt 30 ]; then
         echo "Taps are less than 30. Disconnecting and waiting..."
-
-        # Kill only the curl process related to this script instance
-        if [ -n "$curl_pid" ]; then
-            kill -9 "$curl_pid" && echo "Killed process $curl_pid"
-        else
-            echo "No running curl processes found for this script."
-        fi
 
         # Random sleep time between 10 minutes to 1.5 hours
         sleep_time=$(shuf -i 600-5400 -n 1)
@@ -129,11 +114,11 @@ while true; do
     random_sleep=$(shuf -i 5-10 -n 1) # Faster random sleep time
     sleep $(echo "scale=3; $random_sleep / 1000" | bc)
 
-    # Increased taps per request to speed up the process
+    # Use the Firefox user-agent for the request
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
         -H "Content-Type: application/json" \
         -H "Authorization: $Authorization" \
-        -H "User-Agent: Mozilla/5.0 (Linux; Android 13; S24Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36" \
+        -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
         -d '{
             "availableTaps": '"$Taps"',
             "count": 15, 
