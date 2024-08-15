@@ -87,13 +87,19 @@ calculate_sleep_time() {
     current_hour=$(date +"%H")
 
     if [ "$current_hour" -ge 0 ] && [ "$current_hour" -lt 6 ]; then
-        # If the time is between midnight and 6 AM, set the maximum sleep time to 2.5 hours (9000 seconds)
+        # Between midnight and 6 AM, max sleep time is 2.5 hours (9000 seconds)
         sleep_time=$(generate_gaussian_delay 3600 1800) # mean: 3600 seconds, stddev: 1800 seconds
-        sleep_time=$(awk "BEGIN {print ($sleep_time < 600) ? 600 : ($sleep_time > 9000) ? 9000 : $sleep_time}") # Clamping to range 600-9000
+        sleep_time=$(awk "BEGIN {print ($sleep_time < 1200) ? 1200 : ($sleep_time > 9000) ? 9000 : $sleep_time}") # Clamp to range 1200-9000 seconds
+
+    elif [ "$current_hour" -ge 12 ] && [ "$current_hour" -lt 18 ]; then
+        # Between 12 PM and 6 PM, min sleep time is 20 minutes (1200 seconds) and max is 1 hour (3600 seconds)
+        sleep_time=$(generate_gaussian_delay 2400 600) # mean: 2400 seconds (40 minutes), stddev: 600 seconds (10 minutes)
+        sleep_time=$(awk "BEGIN {print ($sleep_time < 1200) ? 1200 : ($sleep_time > 3600) ? 3600 : $sleep_time}") # Clamp to range 1200-3600 seconds
+
     else
-        # Otherwise, set the maximum sleep time to 1 hour (3600 seconds)
-        sleep_time=$(generate_gaussian_delay 1800 900) # mean: 1800 seconds, stddev: 900 seconds
-        sleep_time=$(awk "BEGIN {print ($sleep_time < 600) ? 600 : ($sleep_time > 3600) ? 3600 : $sleep_time}") # Clamping to range 600-3600
+        # Default case, min sleep time is 20 minutes (1200 seconds) and max sleep time is 1 hour (3600 seconds)
+        sleep_time=$(generate_gaussian_delay 2400 600) # mean: 2400 seconds, stddev: 600 seconds
+        sleep_time=$(awk "BEGIN {print ($sleep_time < 1200) ? 1200 : ($sleep_time > 3600) ? 3600 : $sleep_time}") # Clamp to range 1200-3600 seconds
     fi
 
     echo "$sleep_time"
@@ -133,8 +139,12 @@ while true; do
         
         # Calculate minutes using bc for floating-point division
         minutes=$(echo "scale=2; $sleep_time / 60" | bc)
-        echo "Reconnecting in ${minutes} minutes..."
         
+        # Calculate reconnect time
+        reconnect_time=$(date -d "$sleep_time seconds" +"%H:%M:%S")
+        
+        echo "Reconnecting in ${minutes} minutes at ${reconnect_time}..."
+
         # Use sleep directly without manual countdown
         sleep "$sleep_time"
 
