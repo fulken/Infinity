@@ -74,6 +74,7 @@ while true; do
             https://api.hamsterkombatgame.io/clicker/sync \
             -H "Content-Type: application/json" \
             -H "Authorization: $Authorization" \
+            -H "User-Agent: Mozilla/5.0 (Linux; Android 13; S24Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36" \
             -d '{}' | jq -r '.clickerUser.availableTaps' 2>/dev/null)
 
         if [ -n "$Taps" ] && [ "$Taps" -ge 0 ]; then
@@ -94,12 +95,18 @@ while true; do
         echo "Taps are less than 30. Disconnecting and waiting..."
 
         # Kill all curl processes manually
-        for pid in $(ps aux | grep '[c]url' | awk '{print $2}'); do
-            kill -9 $pid
-        done
+        curl_processes=$(ps aux | grep '[c]url' | awk '{print $2}')
+        if [ -n "$curl_processes" ]; then
+            echo "Killing running curl processes..."
+            for pid in $curl_processes; do
+                kill -9 "$pid" && echo "Killed process $pid"
+            done
+        else
+            echo "No running curl processes found."
+        fi
 
         # Random sleep time between 10 minutes to 1.5 hours
-        sleep_time=$(shuf -i 600-3600 -n 1)
+        sleep_time=$(shuf -i 600-5400 -n 1)
         
         # Countdown timer
         echo "Reconnecting in $(($sleep_time / 60)) minutes..."
@@ -122,6 +129,7 @@ while true; do
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
         -H "Content-Type: application/json" \
         -H "Authorization: $Authorization" \
+        -H "User-Agent: Mozilla/5.0 (Linux; Android 13; S24Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36" \
         -d '{
             "availableTaps": '"$Taps"',
             "count": 15, 
