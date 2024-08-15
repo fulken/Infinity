@@ -65,17 +65,25 @@ echo -en "${green}Enter Coin Capacity [${yellow}default:5000${green}]:${rest} "
 read -r capacity
 capacity=${capacity:-5000}
 
+# Store the script's PID to identify processes started by this script
+script_pid=$$
+
 while true; do
     # Try to get Taps with retries if needed
     attempt=0
     max_attempts=5
     while [ $attempt -lt $max_attempts ]; do
-        Taps=$(curl -s -X POST \
-            https://api.hamsterkombatgame.io/clicker/sync \
+        # Start curl and save its PID
+        curl -s -X POST https://api.hamsterkombatgame.io/clicker/sync \
             -H "Content-Type: application/json" \
             -H "Authorization: $Authorization" \
             -H "User-Agent: Mozilla/5.0 (Linux; Android 13; S24Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36" \
-            -d '{}' | jq -r '.clickerUser.availableTaps' 2>/dev/null)
+            -d '{}' &
+        curl_pid=$!
+
+        # Wait for curl to finish and process its output with jq
+        wait $curl_pid
+        Taps=$(jq -r '.clickerUser.availableTaps' <<< "$TapsOutput")
 
         if [ -n "$Taps" ] && [ "$Taps" -ge 0 ]; then
             break
@@ -94,15 +102,11 @@ while true; do
     if [ "$Taps" -lt 30 ]; then
         echo "Taps are less than 30. Disconnecting and waiting..."
 
-        # Kill all curl processes manually
-        curl_processes=$(ps aux | grep '[c]url' | awk '{print $2}')
-        if [ -n "$curl_processes" ]; then
-            echo "Killing running curl processes..."
-            for pid in $curl_processes; do
-                kill -9 "$pid" && echo "Killed process $pid"
-            done
+        # Kill only the curl process related to this script instance
+        if [ -n "$curl_pid" ]; then
+            kill -9 "$curl_pid" && echo "Killed process $curl_pid"
         else
-            echo "No running curl processes found."
+            echo "No running curl processes found for this script."
         fi
 
         # Random sleep time between 10 minutes to 1.5 hours
