@@ -131,8 +131,11 @@ while true; do
         # Calculate sleep time based on the current hour
         sleep_time=$(calculate_sleep_time)
         
+        # Calculate minutes using bc for floating-point division
+        minutes=$(echo "scale=2; $sleep_time / 60" | bc)
+        echo "Reconnecting in ${minutes} minutes..."
+        
         # Countdown timer
-        echo "Reconnecting in $(($sleep_time / 60)) minutes..."
         while [ $sleep_time -gt 0 ]; do
             echo -ne "Time remaining: $sleep_time seconds\033[0K\r"
             sleep 1
