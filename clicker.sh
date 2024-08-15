@@ -65,6 +65,40 @@ echo -en "${green}Enter Coin Capacity [${yellow}default:5000${green}]:${rest} "
 read -r capacity
 capacity=${capacity:-5000}
 
+# Function to generate random Gaussian delay
+generate_gaussian_delay() {
+    mean=$1
+    stddev=$2
+    # Generate a random number using the Box-Muller transform for Gaussian distribution
+    u1=$(awk "BEGIN {srand(); print rand()}")
+    u2=$(awk "BEGIN {srand(); print rand()}")
+    z=$(awk "BEGIN {print sqrt(-2*log($u1))*cos(2*3.14159265358979*$u2)}")
+    delay=$(awk "BEGIN {print $mean + $stddev * $z}")
+    
+    # Ensure the delay is positive
+    if (( $(echo "$delay < 0" | bc -l) )); then
+        delay=0.1
+    fi
+    echo "$delay"
+}
+
+# Function to calculate the sleep time based on the current hour
+calculate_sleep_time() {
+    current_hour=$(date +"%H")
+
+    if [ "$current_hour" -ge 0 ] && [ "$current_hour" -lt 6 ]; then
+        # If the time is between midnight and 6 AM, set the maximum sleep time to 2.5 hours (9000 seconds)
+        sleep_time=$(generate_gaussian_delay 3600 1800) # mean: 3600 seconds, stddev: 1800 seconds
+        sleep_time=$(awk "BEGIN {print ($sleep_time < 600) ? 600 : ($sleep_time > 9000) ? 9000 : $sleep_time}") # Clamping to range 600-9000
+    else
+        # Otherwise, set the maximum sleep time to 1 hour (3600 seconds)
+        sleep_time=$(generate_gaussian_delay 1800 900) # mean: 1800 seconds, stddev: 900 seconds
+        sleep_time=$(awk "BEGIN {print ($sleep_time < 600) ? 600 : ($sleep_time > 3600) ? 3600 : $sleep_time}") # Clamping to range 600-3600
+    fi
+
+    echo "$sleep_time"
+}
+
 while true; do
     # Try to get Taps with retries if needed
     attempt=0
@@ -94,8 +128,8 @@ while true; do
     if [ "$Taps" -lt 30 ]; then
         echo "Taps are less than 30. Disconnecting and waiting..."
 
-        # Random sleep time between 10 minutes to 1.5 hours
-        sleep_time=$(shuf -i 600-5400 -n 1)
+        # Calculate sleep time based on the current hour
+        sleep_time=$(calculate_sleep_time)
         
         # Countdown timer
         echo "Reconnecting in $(($sleep_time / 60)) minutes..."
@@ -111,8 +145,12 @@ while true; do
         continue
     fi
 
-    random_sleep=$(shuf -i 5-10 -n 1) # Faster random sleep time
-    sleep $(echo "scale=3; $random_sleep / 1000" | bc)
+    # Randomize the number of taps sent
+    tap_count=$(shuf -i 10-20 -n 1)
+
+    # Random sleep time using Gaussian distribution for short delays
+    random_sleep=$(generate_gaussian_delay 2 1) # mean: 2 seconds, stddev: 1 second
+    sleep $(awk "BEGIN {print $random_sleep}")
 
     # Use the Firefox user-agent for the request
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
@@ -121,7 +159,7 @@ while true; do
         -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
         -d '{
             "availableTaps": '"$Taps"',
-            "count": 15, 
+            "count": '"$tap_count"', 
             "timestamp": '"$(date +%s)"'
         }' > /dev/null
 
