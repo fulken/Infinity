@@ -2,14 +2,12 @@
 yellow='\033[0;33m'
 purple='\033[0;35m'
 green='\033[0;32m'
-rest='\033[0m'# Check if jq is installed, if not install itif ! command -v jq &> /dev/null
-then# Check if the environment is Termuxif [ -n "$TERMUX_VERSION" ]; then
+rest='\033[0m'# Check if jq is installed, if not install itif ! command -v jq &> /dev/null; then# Check if the environment is Termuxif [ -n "$TERMUX_VERSION" ]; then
         pkg update -y
         pkg install -y jq
     else
         apt update -y && apt install -y jq
-    fifi# Check if uuidgen is installed, if not install itif ! command -v uuidgen &> /dev/null
-then# Check if the environment is Termuxif [ -n "$TERMUX_VERSION" ]; then
+    fifi# Check if uuidgen is installed, if not install itif ! command -v uuidgen &> /dev/null; then# Check if the environment is Termuxif [ -n "$TERMUX_VERSION" ]; then
         pkg install uuid-utils -y
     else
         apt update -y && apt install uuid-runtime -y
@@ -24,7 +22,7 @@ EVENTS_DELAY=20
 PROXY_FILE="proxy.txt"# Gamedeclare -A games
 games[1, name]="Twerk Race 3D"
 games[1, appToken]="61308365-9d16-4040-8bb0-2f4a4c69074c"
-games[1, promoId]="61308365-9d16-4040-8bb0-2f4a4c69074c"# Proxiesload_proxies() {
+games[1, promoId]="61308365-9d16-4040-8bb0-2f4a4c69074c"# Load proxiesload_proxies() {
     if [[ -f "$1" ]]; thenmapfile -t proxies <"$1"elseecho -e "${yellow}Proxy file not found. We continue without a proxy.${rest}"
         proxies=()
     fi
