@@ -124,20 +124,20 @@ wait_for_cooldown() {
     start_time=$(date +%s)
     end_time=$((start_time + cooldown_seconds))
     
-    echo -e "${yellow}Upgrade is on cooldown. Waiting for cooldown period of ${cyan}$cooldown_seconds${yellow} seconds...${rest}"
+    echo -e "${yellow}Upgrade is on cooldown. Waiting for cooldown period of ${cyan}$((cooldown_seconds / 60))${yellow} minutes...${rest}"
     while [ $start_time -lt $end_time ]; do
         current_time=$(date +%s)
-        elapsed_seconds=$((current_time - start_time))
         remaining_seconds=$((end_time - current_time))
-        elapsed_minutes=$((elapsed_seconds / 60))
         remaining_minutes=$((remaining_seconds / 60))
-        echo -ne "${cyan}Elapsed: $elapsed_minutes min | Remaining: $remaining_minutes min\033[0K\r"
+        echo -ne "${cyan}Remaining: $remaining_minutes min\033[0K\r"
         sleep 1
         start_time=$current_time
     done
+    
+    next_start_time=$(date -d @$end_time +"%Y-%m-%d %H:%M:%S")
+    echo -e "${green}Cooldown completed. Next purchase attempt will start at ${cyan}$next_start_time${green}.${rest}"
 }
 
-# Verify the best item
 # Function to choose between two sets of values
 choose() {
     local best_item_id=$1
