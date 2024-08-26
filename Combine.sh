@@ -6,6 +6,7 @@ green='\033[0;32m'
 yellow='\033[0;33m'
 purple='\033[0;35m'
 cyan='\033[0;36m'
+blue='\033[0;34m'
 rest='\033[0m'
 
 # Function to install necessary packages
@@ -40,113 +41,189 @@ install_packages() {
     fi
 }
 
-# Install necessary packages
+# Install the necessary packages
 install_packages
 
 # Clear the screen
 clear
-echo -e "${purple}=======${yellow} Hamster Combat Auto Clicker with Cipher Check${purple}=======${rest}"
-
-# Prompt for Authorization
+echo -e "${purple}=======${yellow} Hamster Combat Auto Clicker${purple}=======${rest}"
 echo ""
 echo -en "${green}Enter Authorization [${cyan}Example: ${yellow}Bearer 171852....${green}]: ${rest}"
 read -r Authorization
 echo -e "${purple}============================${rest}"
 
-# Function to check if the current time is within the specified window (22:30 - 00:00)
-is_time_within_window() {
-    current_time=$(date +%H:%M)
-    if [[ "$current_time" > "22:30" ]] || [[ "$current_time" < "00:00" ]]; then
-        return 0  # True
-    else
-        return 1  # False
+# Prompt for coin capacity threshold
+echo -en "${green}Enter Coin Capacity [${yellow}default:5000${green}]:${rest} "
+read -r capacity
+capacity=${capacity:-5000}
+
+# Function to generate random Gaussian delay
+generate_gaussian_delay() {
+    mean=$1
+    stddev=$2
+    u1=$(awk "BEGIN {srand(); print rand()}")
+    u2=$(awk "BEGIN {srand(); print rand()}")
+    z=$(awk "BEGIN {print sqrt(-2*log($u1))*cos(2*3.14159265358979*$u2)}")
+    delay=$(awk "BEGIN {print $mean + $stddev * $z}")
+    
+    if (( $(echo "$delay < 0" | bc -l) )); then
+        delay=0.1
     fi
+    echo "$delay"
 }
 
-# Function to fetch available taps
-get_available_taps() {
-    curl -s -X POST https://api.hamsterkombatgame.io/clicker/sync \
-        -H "Content-Type: application/json" \
-        -H "Authorization: $Authorization" \
-        -d '{}' | jq -r '.clickerUser.availableTaps'
+# Function to calculate the sleep time based on a fixed range
+calculate_sleep_time() {
+    sleep_time=$(generate_gaussian_delay 2400 600)
+    sleep_time=$(awk "BEGIN {print ($sleep_time < 1200) ? 1200 : ($sleep_time > 3600) ? 3600 : $sleep_time}")
+
+    echo "$sleep_time"
 }
 
-# Function to check if the cipher has been claimed
-check_cipher_claim_status() {
-    response=$(curl -s -X POST https://api.hamsterkombatgame.io/clicker/config \
-        -H "Content-Type: application/json" \
-        -H "Authorization: $Authorization" \
-        -d '{}')
+# Function to convert text to Morse code
+text_to_morse() {
+    local text="$1"
+    declare -A morse_code_map=(
+        [A]=".-" [B]="-..." [C]="-.-." [D]="-.." [E]="." [F]="..-."
+        [G]="--." [H]="...." [I]=".." [J]=".---" [K]="-.-" [L]=".-.."
+        [M]="--" [N]="-." [O]="---" [P]=".--." [Q]="--.-" [R]=".-."
+        [S]="..." [T]="-" [U]="..-" [V]="...-" [W]=".--" [X]="-..-"
+        [Y]="-.--" [Z]="--.." [0]="-----" [1]=".----" [2]="..---" [3]="...--"
+        [4]="....-" [5]="....." [6]="-...." [7]="--..." [8]="---.." [9]="----."
+    )
 
-    echo "$response" | jq -r '.dailyCipher.isClaimed'
+    local morse=""
+    local char
+    for ((i = 0; i < ${#text}; i++)); do
+        char="${text:$i:1}"
+        morse+="${morse_code_map[$char]} "
+    done
+
+    echo "$morse"
+}
+
+# Function to send tap request with a specific symbol
+send_tap_request() {
+    local symbol="$1"
+    local count
+    case "$symbol" in
+    "-")
+        count=1
+        ;;
+    ".")
+        count=0
+        ;;
+    *)
+        echo -e "${red}Invalid symbol for tap request: $symbol${rest}"
+        return
+        ;;
+    esac
+    curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
+        -H "Authorization: $Authorization" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        -d "{\"count\": $count, \"timestamp\": $(date +%s)}" >/dev/null
 }
 
 # Main loop
 while true; do
-    if is_time_within_window; then
-        is_claimed=$(check_cipher_claim_status)
-        if [ "$is_claimed" = "false" ]; then
-            echo -e "${cyan}Daily cipher is not claimed. Checking and claiming...${rest}"
+    current_hour=$(date +%H)
+    current_minute=$(date +%M)
 
-            # Fetch and decode the cipher
-            cipher=$(curl -s -X POST https://api.hamsterkombatgame.io/clicker/config \
-                -H "Accept: application/json" \
-                -H "Authorization: $Authorization" \
+    if { [ "$current_hour" -eq 22 ] && [ "$current_minute" -ge 30 ]; } || { [ "$current_hour" -eq 23 ] && [ "$current_minute" -lt 0 ]; }; then
+        echo -e "${yellow}Running daily cipher operations...${rest}"
+        
+        available_taps=$(curl -s -X POST https://api.hamsterkombatgame.io/clicker/sync \
+            -H "Content-Type: application/json" \
+            -H "Authorization: $Authorization" \
+            -d '{}' | jq -r '.clickerUser.availableTaps')
+        
+        while [ "$available_taps" -lt 500 ]; do
+            echo -e "${purple}Not enough taps. Waiting 120 seconds...${rest}"
+            sleep 120
+            available_taps=$(curl -s -X POST https://api.hamsterkombatgame.io/clicker/sync \
                 -H "Content-Type: application/json" \
-                -d '{}' | jq -r '.dailyCipher.cipher')
+                -H "Authorization: $Authorization" \
+                -d '{}' | jq -r '.clickerUser.availableTaps')
+        done
 
-            if [ -z "$cipher" ]; then
-                echo -e "${red}Error: No cipher received.${rest}"
-            else
-                modified_cipher="${cipher:0:3}${cipher:4}"
-                decoded_cipher=$(echo "$modified_cipher" | base64 --decode)
+        cipher=$(curl -s -X POST https://api.hamsterkombatgame.io/clicker/config \
+            -H "Accept: application/json" \
+            -H "Authorization: $Authorization" \
+            -H "Content-Type: application/json" \
+            -d '{}' | jq -r '.dailyCipher.cipher')
 
-                # Try to claim the cipher
-                response=$(curl -s -X POST https://api.hamsterkombatgame.io/clicker/claim-daily-cipher \
-                    -H "Authorization: $Authorization" \
-                    -H "Content-Type: application/json" \
-                    -d "{\"cipher\": \"$decoded_cipher\"}")
-
-                if [ "$(echo "$response" | jq -r '.dailyCipher.isClaimed')" == "true" ]; then
-                    echo -e "${green}Daily cipher successfully claimed.${rest}"
-                else
-                    echo -e "${red}Failed to claim the daily cipher.${rest}"
-                fi
-            fi
-        else
-            echo -e "${green}Daily cipher is already claimed.${rest}"
+        if [ -z "$cipher" ]; then
+            echo -e "${red}Error: No cipher received.${rest}"
+            exit 1
         fi
-    fi
 
-    # Auto-clicking logic after checking the cipher
-    available_taps=$(get_available_taps)
-    if [ -z "$available_taps" ] || [ "$available_taps" -lt 0 ]; then
-        echo "Failed to retrieve Taps. Exiting script."
-        exit 1
-    fi
+        modified_cipher="${cipher:0:3}${cipher:4}"
+        decoded_cipher=$(echo "$modified_cipher" | base64 --decode)
 
-    if [ "$available_taps" -lt 30 ]; then
-        echo "Taps are less than 30. Disconnecting and waiting..."
+        echo -e "${green}Daily Cipher is: ${cyan}$decoded_cipher${rest}"
 
-        # Calculate sleep time based on a fixed range
-        sleep_time=$(generate_gaussian_delay 2400 600)
-        sleep_time=$(awk "BEGIN {print ($sleep_time < 1200) ? 1200 : ($sleep_time > 3600) ? 3600 : $sleep_time}")
-        echo "Reconnecting in $(echo "$sleep_time / 60" | bc) minutes..."
-        sleep "$sleep_time"
+        morse_code=$(text_to_morse "$decoded_cipher")
+
+        for ((i = 0; i < ${#morse_code}; i++)); do
+            symbol="${morse_code:$i:1}"
+            case "$symbol" in
+            "-")
+                send_tap_request "-"
+                ;;
+            ".")
+                send_tap_request "."
+                ;;
+            " ")
+                sleep 1
+                ;;
+            esac
+            sleep 0.5
+        done
+
+        response=$(curl -s -X POST https://api.hamsterkombatgame.io/clicker/claim-daily-cipher \
+            -H "Authorization: $Authorization" \
+            -H "Content-Type: application/json" \
+            -d "{\"cipher\": \"$decoded_cipher\"}")
+
+        if [ "$(echo "$response" | jq -r '.dailyCipher.isClaimed')" == "true" ]; then
+            echo -e "${green}Daily cipher successfully claimed.${rest}"
+        else
+            echo -e "${red}Failed to claim the daily cipher.${rest}"
+        fi
+
         continue
     fi
 
-    # Tap action
+    Taps=$(curl -s -X POST \
+        https://api.hamsterkombatgame.io/clicker/sync \
+        -H "Content-Type: application/json" \
+        -H "Authorization: $Authorization" \
+        -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
+        -d '{}' | jq -r '.clickerUser.availableTaps')
+
+    if [ "$Taps" -lt 30 ]; then
+        echo "Taps are less than 30. Disconnecting and waiting..."
+        sleep_time=$(calculate_sleep_time)
+        sleep "$sleep_time"
+        clear
+        echo "Reconnecting now..."
+        continue
+    fi
+
     tap_count=$(shuf -i 10-20 -n 1)
+    random_sleep=$(generate_gaussian_delay 2 1)
+    sleep $(awk "BEGIN {print $random_sleep}")
+
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
         -H "Content-Type: application/json" \
         -H "Authorization: $Authorization" \
+        -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
         -d '{
-            "availableTaps": '"$available_taps"',
+            "availableTaps": '"$Taps"',
             "count": '"$tap_count"', 
             "timestamp": '"$(date +%s)"'
         }' > /dev/null
 
-    echo "Taps left: $available_taps"
-    sleep $(generate_gaussian_delay 2 1)
+    echo "Taps left: $Taps"
 done
