@@ -86,7 +86,7 @@ while true; do
     current_minute=$(date +%M)
 
     # Check if it's time to run daily cipher operations
-    if { [ "$current_hour" -eq 22 ] && [ "$current_minute" -ge 30 ]; } || { [ "$current_hour" -eq 23 ] && [ "$current_minute" -lt 30 ]; }; then
+    if { [ "$current_hour" -eq 22 ] && [ "$current_minute" -ge 30 ]; } || { [ "$current_hour" -eq 2 ] && [ "$current_minute" -lt 00 ]; }; then
         echo -e "${yellow}Running daily cipher operations...${rest}"
 
         # Get the daily cipher status
