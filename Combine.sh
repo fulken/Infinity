@@ -80,54 +80,6 @@ calculate_sleep_time() {
     echo "$sleep_time"
 }
 
-# Function to convert text to Morse code
-text_to_morse() {
-    local text="$1"
-    declare -A morse_code_map=(
-        [A]=".-" [B]="-..." [C]="-.-." [D]="-.." [E]="." [F]="..-."
-        [G]="--." [H]="...." [I]=".." [J]=".---" [K]="-.-" [L]=".-.."
-        [M]="--" [N]="-." [O]="---" [P]=".--." [Q]="--.-" [R]=".-."
-        [S]="..." [T]="-" [U]="..-" [V]="...-" [W]=".--" [X]="-..-"
-        [Y]="-.--" [Z]="--.." [0]="-----" [1]=".----" [2]="..---" [3]="...--"
-        [4]="....-" [5]="....." [6]="-...." [7]="--..." [8]="---.." [9]="----."
-    )
-
-    local morse=""
-    local char
-    for ((i = 0; i < ${#text}; i++)); do
-        char="${text:$i:1}"
-        morse+="${morse_code_map[$char]} "
-    done
-
-    echo "$morse"
-}
-
-# Function to send tap request with a specific symbol
-send_tap_request() {
-    local symbol="$1"
-    local count
-    case "$symbol" in
-    "-")
-        count=1
-        ;;
-    ".")
-        count=0
-        ;;
-    *)
-        echo -e "${red}Invalid symbol for tap request: $symbol${rest}"
-        return
-        ;;
-    esac
-    curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
-        -H "Authorization: $Authorization" \
-        -H "Content-Type: application/json" \
-        -H "Accept: application/json" \
-        -d "{\"count\": $count, \"timestamp\": $(date +%s)}" >/dev/null
-}
-
-# Flag to check if daily cipher has been executed
-daily_cipher_executed=false
-
 # Main loop
 while true; do
     current_hour=$(date +%H)
@@ -135,9 +87,17 @@ while true; do
 
     # Check if it's time to run daily cipher operations
     if { [ "$current_hour" -eq 22 ] && [ "$current_minute" -ge 30 ]; } || { [ "$current_hour" -eq 23 ] && [ "$current_minute" -lt 30 ]; }; then
-        if ! $daily_cipher_executed; then
-            echo -e "${yellow}Running daily cipher operations...${rest}"
+        echo -e "${yellow}Running daily cipher operations...${rest}"
 
+        # Get the daily cipher status
+        claim_status=$(curl -s -X GET https://api.hamsterkombatgame.io/clicker/check-daily-cipher-status \
+            -H "Content-Type: application/json" \
+            -H "Authorization: $Authorization" |
+            jq -r '.dailyCipher.isClaimed')
+
+        if [ "$claim_status" == "false" ]; then
+            echo -e "${yellow}Claiming daily cipher...${rest}"
+            # Include daily_cipher.sh logic here if not claimed
             available_taps=$(curl -s -X POST https://api.hamsterkombatgame.io/clicker/sync \
                 -H "Content-Type: application/json" \
                 -H "Authorization: $Authorization" \
@@ -168,24 +128,6 @@ while true; do
 
             echo -e "${green}Daily Cipher is: ${cyan}$decoded_cipher${rest}"
 
-            morse_code=$(text_to_morse "$decoded_cipher")
-
-            for ((i = 0; i < ${#morse_code}; i++)); do
-                symbol="${morse_code:$i:1}"
-                case "$symbol" in
-                "-")
-                    send_tap_request "-"
-                    ;;
-                ".")
-                    send_tap_request "."
-                    ;;
-                " ")
-                    sleep 1
-                    ;;
-                esac
-                sleep 0.5
-            done
-
             response=$(curl -s -X POST https://api.hamsterkombatgame.io/clicker/claim-daily-cipher \
                 -H "Authorization: $Authorization" \
                 -H "Content-Type: application/json" \
@@ -196,12 +138,9 @@ while true; do
             else
                 echo -e "${red}Failed to claim the daily cipher.${rest}"
             fi
-
-            # Set flag to true to prevent rerunning the cipher operation in the same session
-            daily_cipher_executed=true
+        else
+            echo -e "${green}Daily cipher has already been claimed.${rest}"
         fi
-    else
-        daily_cipher_executed=false
     fi
 
     # Normal operations of the first script (clickerV2.sh)
@@ -213,7 +152,8 @@ while true; do
         jq '.clickerUser.availableTaps')
 
     if [ "$Taps" -le 0 ]; then
-        echo -e "${yellow}No more taps available. Sleeping now...${rest}"
+        echo "No more taps available. Sleeping now..."
+        sleep 10
         continue
     fi
 
@@ -229,7 +169,7 @@ while true; do
             "availableTaps": '"$Taps"',
             "count": '"$tap_count"',
             "timestamp": '"$(date +%s)"'
-        }' >/dev/null
+        }' > /dev/null
 
-    echo -e "${blue}Taps left: $Taps${rest}"
+    echo "Taps left: $Taps"
 done
