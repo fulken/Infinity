@@ -82,29 +82,11 @@ generate_gaussian_delay() {
 
 # Function to calculate the sleep time based on a fixed range
 calculate_sleep_time() {
-    sleep_time=$(generate_gaussian_delay 1200 300) # mean: 1200 seconds, stddev: 300 seconds
-    sleep_time=$(awk "BEGIN {print ($sleep_time < 600) ? 600 : ($sleep_time > 1800) ? 1800 : $sleep_time}") # Clamp to range 600-1800 seconds
-
+    # Sleep time range: 15 minutes (900 seconds) to 60 minutes (3600 seconds)
+    clear
+    sleep_time=$(shuf -i 900-3600 -n 1)
     echo "$sleep_time"
 }
-
-# Function to check if the account is flagged as a bot
-check_bot_flag() {
-    response=$(curl -s -X GET \
-        https://api.hamsterkombatgame.io/clicker/check-bot \
-        -H "Authorization: $Authorization" \
-        -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0")
-
-    if echo "$response" | grep -q '"isBot":true'; then
-        echo -e "${red}Warning: Account is flagged as a bot!${rest}"
-        exit 1
-    else
-        echo -e "${green}Account is not flagged as a bot.${rest}"
-    fi
-}
-
-# Check if account is flagged as a bot
-check_bot_flag
 
 while true; do
     attempt=0
@@ -147,9 +129,8 @@ while true; do
         continue
     fi
 
+    # Use the minimum delay to maximize the speed of tapping
     tap_count=$(shuf -i 10-20 -n 1)
-    random_sleep=$(generate_gaussian_delay 1 0.5) # mean: 1 second, stddev: 0.5 seconds
-    sleep $(awk "BEGIN {print $random_sleep}")
 
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
         -H "Content-Type: application/json" \
