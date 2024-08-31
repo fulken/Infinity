@@ -11,7 +11,7 @@ rest='\033[0m'
 
 # If running in Termux, update and upgrade
 if [ -d "$HOME/.termux" ] && [ -z "$(command -v jq)" ]; then
-    echo "Running update & upgrade ..."
+    echo -e "${blue}Running update & upgrade ...${rest}"
     pkg update -y
     pkg upgrade -y
 fi
@@ -55,28 +55,16 @@ install_packages
 clear
 echo -e "${purple}=======${yellow} Hamster Combat Auto Clicker${purple}=======${rest}"
 
-# Read Authorization and User-Agent from config.txt
-config_file="config.txt"
-if [ ! -f "$config_file" ]; then
-    echo -e "${red}Config file not found! Please create config.txt with the Authorization and User-Agent headers.${rest}"
-    exit 1
-fi
+# Prompt for Authorization
+echo ""
+echo -en "${green}Enter Authorization [${cyan}Example: ${yellow}Bearer 171852....${green}]: ${rest}"
+read -r Authorization
+echo -e "${purple}============================${rest}"
 
-Authorization=$(grep '^Authorization: Bearer ' "$config_file" | sed 's/^Authorization: Bearer //')
-UserAgent=$(grep '^User-Agent: ' "$config_file" | sed 's/^User-Agent: //')
-
-if [ -z "$Authorization" ]; then
-    echo -e "${red}Authorization not found in config.txt!${rest}"
-    exit 1
-fi
-
-if [ -z "$UserAgent" ]; then
-    echo -e "${red}User-Agent not found in config.txt!${rest}"
-    exit 1
-fi
-
-# Fixed click count
-tap_count=15
+# Prompt for coin capacity threshold
+echo -en "${green}Enter Coin Capacity [${yellow}default:5000${green}]:${rest} "
+read -r capacity
+capacity=${capacity:-5000}
 
 # Function to generate random Gaussian delay
 generate_gaussian_delay() {
@@ -112,8 +100,8 @@ while true; do
         Taps=$(curl -s -X POST \
             https://api.hamsterkombatgame.io/clicker/sync \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $Authorization" \
-            -H "User-Agent: $UserAgent" \
+            -H "Authorization: $Authorization" \
+            -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
             -d '{}' | jq -r '.clickerUser.availableTaps' 2>/dev/null)
 
         if [ -n "$Taps" ] && [ "$Taps" -ge 0 ]; then
@@ -121,21 +109,18 @@ while true; do
         fi
 
         attempt=$((attempt + 1))
-        echo "Failed to retrieve Taps. Attempt $attempt/$max_attempts"
+        echo -e "${red}Failed to retrieve Taps. Attempt $attempt/$max_attempts${rest}"
         sleep 2
     done
 
     if [ -z "$Taps" ] || [ "$Taps" -lt 0 ]; then
-        echo "Failed to retrieve Taps after $max_attempts attempts. Exiting script."
+        echo -e "${red}Failed to retrieve Taps after $max_attempts attempts. Exiting script.${rest}"
         exit 1
     fi
 
     if [ "$Taps" -lt 30 ]; then
-        echo "Taps are less than 30. Disconnecting and waiting..."
+        echo -e "${yellow}Taps are less than 30. Disconnecting and waiting...${rest}"
 
-        # Clear the screen before delaying
-        clear
-        
         # Calculate sleep time based on a fixed range
         sleep_time=$(calculate_sleep_time)
         
@@ -145,16 +130,19 @@ while true; do
         # Calculate reconnect time
         reconnect_time=$(date -d "$sleep_time seconds" +"%H:%M:%S")
         
-        echo "Reconnecting in ${minutes} minutes at ${reconnect_time}..."
+        echo -e "${blue}Reconnecting in ${minutes} minutes at ${reconnect_time}...${rest}"
 
         # Use sleep directly without manual countdown
         sleep "$sleep_time"
 
         # Clear screen after sleep
         clear
-        echo "Reconnecting now..."
+        echo -e "${green}Reconnecting now...${rest}"
         continue
     fi
+
+    # Randomize the number of taps sent
+    tap_count=$(shuf -i 10-20 -n 1)
 
     # Random sleep time using Gaussian distribution for short delays
     random_sleep=$(generate_gaussian_delay 2 1) # mean: 2 seconds, stddev: 1 second
@@ -163,13 +151,13 @@ while true; do
     # Use the Firefox user-agent for the request
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
         -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $Authorization" \
-        -H "User-Agent: $UserAgent" \
+        -H "Authorization: $Authorization" \
+        -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
         -d '{
             "availableTaps": '"$Taps"',
             "count": '"$tap_count"', 
             "timestamp": '"$(date +%s)"'
         }' > /dev/null
 
-    echo "Taps left: $Taps"
+    echo -e "${green}Taps left: $Taps${rest}"
 done
