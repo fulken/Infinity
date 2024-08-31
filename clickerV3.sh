@@ -69,6 +69,10 @@ calculate_delay() {
 
     # Calculate the delay between each request to meet the 15-second target
     delay=$(awk "BEGIN {print $target_time / $total_requests}")
+    
+    # Speed up by reducing the delay by 5 times
+    delay=$(awk "BEGIN {print $delay / 5}")
+    
     echo "$delay"
 }
 
@@ -92,7 +96,7 @@ tap_count=50  # Number of taps per request
 delay=$(calculate_delay "$Taps" "$tap_count")
 
 # Empty all taps
-while [ "$Taps" -gt 0 ]; do
+while [ "$Taps" -gt 0 ];do
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
         -H "Content-Type: application/json" \
         -H "Authorization: $Authorization" \
