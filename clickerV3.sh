@@ -54,46 +54,112 @@ install_packages
 # Clear the screen
 clear
 echo -e "${purple}=======${yellow} Hamster Combat Auto Clicker${purple}=======${rest}"
-# Prompt for Authorization
-echo ""
-echo -en "${green}Enter Authorization [${cyan}Example: ${yellow}Bearer 171852....${green}]: ${rest}"
-read -r Authorization
-echo -e "${purple}============================${rest}"
 
-# Get the current number of available taps
-Taps=$(curl -s -X POST \
-    https://api.hamsterkombatgame.io/clicker/sync \
-    -H "Content-Type: application/json" \
-    -H "Authorization: $Authorization" \
-    -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
-    -d '{}' | jq -r '.clickerUser.availableTaps' 2>/dev/null)
-
-if [ -z "$Taps" ] || [ "$Taps" -lt 0 ]; then
-    echo "Failed to retrieve Taps. Exiting script."
+# Read Authorization from config.txt
+config_file="config.txt"
+if [ ! -f "$config_file" ]; then
+    echo -e "${red}Config file not found! Please create config.txt with the Authorization header.${rest}"
     exit 1
 fi
 
-# Set tap count per request
-tap_count=50  # Number of taps per request
+Authorization=$(grep '^Authorization: Bearer ' "$config_file" | sed 's/^Authorization: Bearer //')
+if [ -z "$Authorization" ]; then
+    echo -e "${red}Authorization not found in config.txt!${rest}"
+    exit 1
+fi
 
-# Empty all taps without delay
-while [ "$Taps" -gt 0 ]; do
+# Fixed click count
+tap_count=15
+
+# Function to generate random Gaussian delay
+generate_gaussian_delay() {
+    mean=$1
+    stddev=$2
+    # Generate a random number using the Box-Muller transform for Gaussian distribution
+    u1=$(awk "BEGIN {srand(); print rand()}")
+    u2=$(awk "BEGIN {srand(); print rand()}")
+    z=$(awk "BEGIN {print sqrt(-2*log($u1))*cos(2*3.14159265358979*$u2)}")
+    delay=$(awk "BEGIN {print $mean + $stddev * $z}")
+    
+    # Ensure the delay is positive
+    if (( $(echo "$delay < 0" | bc -l) )); then
+        delay=0.1
+    fi
+    echo "$delay"
+}
+
+# Function to calculate the sleep time based on a fixed range
+calculate_sleep_time() {
+    # Fixed sleep time range: 20 minutes (1200 seconds) to 1 hour (3600 seconds)
+    sleep_time=$(generate_gaussian_delay 2400 600) # mean: 2400 seconds, stddev: 600 seconds
+    sleep_time=$(awk "BEGIN {print ($sleep_time < 1200) ? 1200 : ($sleep_time > 3600) ? 3600 : $sleep_time}") # Clamp to range 1200-3600 seconds
+
+    echo "$sleep_time"
+}
+
+while true; do
+    # Try to get Taps with retries if needed
+    attempt=0
+    max_attempts=5
+    while [ $attempt -lt $max_attempts ]; do
+        Taps=$(curl -s -X POST \
+            https://api.hamsterkombatgame.io/clicker/sync \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $Authorization" \
+            -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
+            -d '{}' | jq -r '.clickerUser.availableTaps' 2>/dev/null)
+
+        if [ -n "$Taps" ] && [ "$Taps" -ge 0 ]; then
+            break
+        fi
+
+        attempt=$((attempt + 1))
+        echo "Failed to retrieve Taps. Attempt $attempt/$max_attempts"
+        sleep 2
+    done
+
+    if [ -z "$Taps" ] || [ "$Taps" -lt 0 ]; then
+        echo "Failed to retrieve Taps after $max_attempts attempts. Exiting script."
+        exit 1
+    fi
+
+    if [ "$Taps" -lt 30 ]; then
+        echo "Taps are less than 30. Disconnecting and waiting..."
+
+        # Calculate sleep time based on a fixed range
+        sleep_time=$(calculate_sleep_time)
+        
+        # Calculate minutes using bc for floating-point division
+        minutes=$(echo "scale=2; $sleep_time / 60" | bc)
+        
+        # Calculate reconnect time
+        reconnect_time=$(date -d "$sleep_time seconds" +"%H:%M:%S")
+        
+        echo "Reconnecting in ${minutes} minutes at ${reconnect_time}..."
+
+        # Use sleep directly without manual countdown
+        sleep "$sleep_time"
+
+        # Clear screen after sleep
+        clear
+        echo "Reconnecting now..."
+        continue
+    fi
+
+    # Random sleep time using Gaussian distribution for short delays
+    random_sleep=$(generate_gaussian_delay 2 1) # mean: 2 seconds, stddev: 1 second
+    sleep $(awk "BEGIN {print $random_sleep}")
+
+    # Use the Firefox user-agent for the request
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
         -H "Content-Type: application/json" \
-        -H "Authorization: $Authorization" \
+        -H "Authorization: Bearer $Authorization" \
         -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
         -d '{
             "availableTaps": '"$Taps"',
             "count": '"$tap_count"', 
             "timestamp": '"$(date +%s)"'
         }' > /dev/null
-    
-    Taps=$((Taps - tap_count))
-    if [ "$Taps" -le 0 ]; then
-        break
-    fi
 
     echo "Taps left: $Taps"
 done
-
-echo "All taps have been used up."
