@@ -60,22 +60,6 @@ echo -en "${green}Enter Authorization [${cyan}Example: ${yellow}Bearer 171852...
 read -r Authorization
 echo -e "${purple}============================${rest}"
 
-# Function to calculate the delay to empty taps within 15 seconds
-calculate_delay() {
-    local total_taps=$1
-    local tap_count=$2
-    local target_time=15  # 15 seconds
-    local total_requests=$((total_taps / tap_count))
-
-    # Calculate the delay between each request to meet the 15-second target
-    delay=$(awk "BEGIN {print $target_time / $total_requests}")
-    
-    # Speed up by reducing the delay by 5 times
-    delay=$(awk "BEGIN {print $delay / 5}")
-    
-    echo "$delay"
-}
-
 # Get the current number of available taps
 Taps=$(curl -s -X POST \
     https://api.hamsterkombatgame.io/clicker/sync \
@@ -92,11 +76,8 @@ fi
 # Set tap count per request
 tap_count=50  # Number of taps per request
 
-# Calculate the delay needed to empty all taps within 15 seconds
-delay=$(calculate_delay "$Taps" "$tap_count")
-
-# Empty all taps
-while [ "$Taps" -gt 0 ];do
+# Empty all taps without delay
+while [ "$Taps" -gt 0 ]; do
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
         -H "Content-Type: application/json" \
         -H "Authorization: $Authorization" \
@@ -113,9 +94,6 @@ while [ "$Taps" -gt 0 ];do
     fi
 
     echo "Taps left: $Taps"
-    
-    # Sleep for the calculated delay
-    sleep "$delay"
 done
 
 echo "All taps have been used up."
