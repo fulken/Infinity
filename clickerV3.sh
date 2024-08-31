@@ -133,6 +133,9 @@ while true; do
     if [ "$Taps" -lt 30 ]; then
         echo "Taps are less than 30. Disconnecting and waiting..."
 
+        # Clear the screen before delaying
+        clear
+        
         # Calculate sleep time based on a fixed range
         sleep_time=$(calculate_sleep_time)
         
