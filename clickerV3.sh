@@ -84,8 +84,8 @@ calculate_sleep_time() {
 # List of accounts and their user agents
 declare -A accounts
 accounts=(
-    ["Account1"]="Bearer 1720947826174N7YC23CoYREsermt4OECFKxljykdwuHpWrtJFfurvEdJCNTrxlE6kle8MhlJjaPt1777364098"
-    ["Account2"]="Bearer 181825347122kND7C239ERoEfkkygPWhECKOzzrlkutwPdrIFpslwsnXMJKPxhgLgno9NcmBiPbs2374563905"
+    ["Account1"]="Bearer 1720948118268FBlZsglPpjR0wOTdEQMJOEbKRzFCwdlmHEyHvSMKjCMFebHSE44XSU9haujHQYGj7243936829"
+    ["Account2"]="BBearer 1722103627817QVvujQkc3TehySDGtcF6eWa4OGFWWn0BZxthC6O18WURGR8lDCih40j4sSrVIz2x6676311646"
     # Add more accounts here
 )
 
