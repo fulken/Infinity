@@ -55,16 +55,23 @@ install_packages
 clear
 echo -e "${purple}=======${yellow} Hamster Combat Auto Clicker${purple}=======${rest}"
 
-# Read Authorization from config.txt
+# Read Authorization and User-Agent from config.txt
 config_file="config.txt"
 if [ ! -f "$config_file" ]; then
-    echo -e "${red}Config file not found! Please create config.txt with the Authorization header.${rest}"
+    echo -e "${red}Config file not found! Please create config.txt with the Authorization and User-Agent headers.${rest}"
     exit 1
 fi
 
 Authorization=$(grep '^Authorization: Bearer ' "$config_file" | sed 's/^Authorization: Bearer //')
+UserAgent=$(grep '^User-Agent: ' "$config_file" | sed 's/^User-Agent: //')
+
 if [ -z "$Authorization" ]; then
     echo -e "${red}Authorization not found in config.txt!${rest}"
+    exit 1
+fi
+
+if [ -z "$UserAgent" ]; then
+    echo -e "${red}User-Agent not found in config.txt!${rest}"
     exit 1
 fi
 
@@ -106,7 +113,7 @@ while true; do
             https://api.hamsterkombatgame.io/clicker/sync \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $Authorization" \
-            -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
+            -H "User-Agent: $UserAgent" \
             -d '{}' | jq -r '.clickerUser.availableTaps' 2>/dev/null)
 
         if [ -n "$Taps" ] && [ "$Taps" -ge 0 ]; then
@@ -154,7 +161,7 @@ while true; do
     curl -s -X POST https://api.hamsterkombatgame.io/clicker/tap \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $Authorization" \
-        -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
+        -H "User-Agent: $UserAgent" \
         -d '{
             "availableTaps": '"$Taps"',
             "count": '"$tap_count"', 
