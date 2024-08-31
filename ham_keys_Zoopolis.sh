@@ -49,41 +49,37 @@ games[1, name]="Zoopolis"
 games[1, appToken]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 games[1, promoId]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 
-games[2, name]="Gangs Wars"
-games[2, appToken]="c7821fa7-6632-482c-9635-2bd5798585f9"
-games[2, promoId]="c7821fa7-6632-482c-9635-2bd5798585f9"
+games[2, name]="Zoopolis"
+games[2, appToken]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
+games[2, promoId]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 
 games[3, name]="Zoopolis"
 games[3, appToken]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 games[3, promoId]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 
-games[4, name]="Gangs Wars"
-games[4, appToken]="c7821fa7-6632-482c-9635-2bd5798585f9"
-games[4, promoId]="c7821fa7-6632-482c-9635-2bd5798585f9"
+games[4, name]="Zoopolis"
+games[4, appToken]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
+games[4, promoId]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 
 games[5, name]="Zoopolis"
 games[5, appToken]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 games[5, promoId]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 
-games[6, name]="Gangs Wars"
-games[6, appToken]="c7821fa7-6632-482c-9635-2bd5798585f9"
-games[6, promoId]="c7821fa7-6632-482c-9635-2bd5798585f9"
+games[6, name]="Zoopolis"
+games[6, appToken]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
+games[6, promoId]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 
 games[7, name]="Zoopolis"
 games[7, appToken]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 games[7, promoId]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 
-games[8, name]="Gangs Wars"
-games[8, appToken]="c7821fa7-6632-482c-9635-2bd5798585f9"
-games[8, promoId]="c7821fa7-6632-482c-9635-2bd5798585f9"
+games[8, name]="Zoopolis"
+games[8, appToken]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
+games[8, promoId]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 
 games[9, name]="Zoopolis"
 games[9, appToken]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
 games[9, promoId]="b2436c89-e0aa-4aed-8046-9b0515e1c46b"
-
-games[10, name]="Gangs Wars"
-games[10, appToken]="c7821fa7-6632-482c-9635-2bd5798585f9"
-games[10, promoId]="c7821fa7-6632-482c-9635-2bd5798585f9"
 
 # Proxys
 load_proxies() {
@@ -216,7 +212,7 @@ main() {
 	load_proxies "$PROXY_FILE"
 
 	while true; do
-		for game_choice in {1..10}; do
+		for game_choice in {1..9}; do
 			if [[ ${#proxies[@]} -gt 0 ]]; then
 				proxy=${proxies[RANDOM % ${#proxies[@]}]}
 			else
