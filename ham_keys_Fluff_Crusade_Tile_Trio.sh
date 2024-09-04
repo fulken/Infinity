@@ -34,10 +34,24 @@ echo -e "${purple}============================${rest}"
 echo -en "${purple}[Optional] ${green}Enter Your Telegram Channel ID [example: ${yellow}@P_Tech2024${green}]: ${rest}"
 read -r TELEGRAM_CHANNEL_ID
 echo -e "${purple}============================${rest}"
+echo -en "${purple}[Optional] ${green}Enter your proxy (e.g., socks5://user:pass@host:port) or leave empty to continue without proxy: ${rest}"
+read -r USER_PROXY
+echo -e "${purple}============================${rest}"
+
+if [[ -n "$USER_PROXY" ]]; then
+    PROXY="$USER_PROXY"
+    echo -e "${green}Using proxy: ${yellow}$PROXY${rest}"
+else
+    echo -e "${yellow}No proxy provided, continuing without proxy.${rest}"
+    PROXY=""
+fi
+
+# Get and display public IP address
+echo -e "${purple}Your public IP address is: ${yellow}$(curl -s --proxy "$PROXY" https://ipinfo.io/ip)${rest}"
+echo -e "${purple}============================${rest}"
 echo -e "${green}generating ... Keys will be saved in [${yellow}my_keys.txt${green}]..${rest}"
 
 EVENTS_DELAY=20
-PROXY="socks5://chghhzmv:tksrhe25ohts@38.154.227.167:5868"
 
 # Set bot as channel admin. and enable manage message in admin settings.
 # ربات را به عنوان ادمین کانال انتخاب کنید و manage message را فعال کنید.
