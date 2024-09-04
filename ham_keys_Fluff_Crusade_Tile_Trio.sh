@@ -47,7 +47,7 @@ else
 fi
 
 # Get and display public IP address
-echo -e "${purple}Your public IP address is: ${yellow}$(curl -s --proxy "$PROXY" https://ipinfo.io/ip)${rest}"
+echo -e "${purple}Your public IP address is: ${yellow}$(curl -s --proxy "$PROXY" https://api.ipify.org)${rest}"
 echo -e "${purple}============================${rest}"
 echo -e "${green}generating ... Keys will be saved in [${yellow}my_keys.txt${green}]..${rest}"
 
