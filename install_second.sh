@@ -69,6 +69,10 @@ echo -e "${purple}============================${rest}"
 echo -en "${green}Enter the Threshold that you want to buy a new card? (${yellow}number below 1 to always buy the best card and greater then 1 to buying the second best card threshold${green}):${rest}"
 read -r threshold
 
+# Prompt for User-Agent
+echo -en "${green}Enter User-Agent [Example: Mozilla/5.0 ...]: ${rest}"
+read -r user_agent
+
 # Variables to keep track of total spent and total profit
 total_spent=0
 total_profit=0
@@ -89,7 +93,7 @@ purchase_upgrade() {
 
 # Function to get the best upgrade item
 get_best_item() {
-    curl -s -X POST -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
+    curl -s -X POST -H "User-Agent: $user_agent" \
         -H "Accept: */*" \
         -H "Accept-Language: en-US,en;q=0.5" \
         -H "Referer: https://hamsterkombat.io/" \
@@ -103,8 +107,9 @@ get_best_item() {
         https://api.hamsterkombatgame.io/clicker/upgrades-for-buy | jq -r '.upgradesForBuy | map(select(.isExpired == false and .isAvailable)) | map(select(.profitPerHourDelta != 0 and .price != 0)) | sort_by(-(.profitPerHourDelta / .price))[:1] | .[0] | {id: .id, section: .section, price: .price, profitPerHourDelta: .profitPerHourDelta, cooldownSeconds: .cooldownSeconds}'
 }
 
+# Function to get the second best upgrade item
 get_second_best_item() {
-    curl -s -X POST -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
+    curl -s -X POST -H "User-Agent: $user_agent" \
         -H "Accept: */*" \
         -H "Accept-Language: en-US,en;q=0.5" \
         -H "Referer: https://hamsterkombat.io/" \
@@ -117,7 +122,6 @@ get_second_best_item() {
         -H "Priority: u=4" \
         https://api.hamsterkombatgame.io/clicker/upgrades-for-buy | jq -r '.upgradesForBuy | map(select(.isExpired == false and .isAvailable)) | map(select(.profitPerHourDelta!= 0 and .price!= 0)) | sort_by(-(.profitPerHourDelta /.price))[:2] |.[1] | {id:.id, section:.section, price:.price, profitPerHourDelta:.profitPerHourDelta, cooldownSeconds:.cooldownSeconds}'
 }
-
 # Function to wait for cooldown period with countdown in minutes
 wait_for_cooldown() {
     cooldown_seconds="$1"
